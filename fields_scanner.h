@@ -3,6 +3,7 @@
 #include <type_traits>
 #include <utility>
 #include <cstddef>
+#include <cstdint>
 
 namespace simple_reflection
 {
@@ -51,6 +52,24 @@ namespace simple_reflection
 	{
 		static constexpr size_t size = sizeof...(Ts);
 	};
+
+	template<typename... Ts1, typename... Ts2>
+	constexpr auto join_type_lists(type_list<Ts1...>, type_list<Ts2...>) noexcept
+	{
+		return type_list<Ts1..., Ts2...>{};
+	}
+
+	template<typename TL1, typename TL2>
+	struct type_lists_joiner;
+
+	template<typename... Ts1, typename... Ts2>
+	struct type_lists_joiner<type_list<Ts1...>, type_list<Ts2...>>
+	{
+		using type = type_list<Ts1..., Ts2...>;
+	};
+
+	template<typename TL1, typename TL2>
+	using type_lists_joiner_t = typename type_lists_joiner<TL1, TL2>::type;
 
 	template<size_t I, typename T>
 	struct type_list_element;
@@ -104,7 +123,7 @@ namespace simple_reflection
 
 	// types_of_fields_detector
 
-	template<typename Type, typename TypeList>
+	template<typename Type, typename UserTypeList>
 	struct types_of_fields_detector
 	{
 		static constexpr size_t fields_count = fields_count_detector<Type>::detect();
@@ -113,38 +132,47 @@ namespace simple_reflection
 		{
 			return constexpr_array<size_t, fields_count, types_indexes_filler>();
 		}
-	private:
-		struct types_indexes_sorter
+
+		using pre_defined_type_list_t = type_list
+			<
+			bool,
+			int8_t, uint8_t,
+			int16_t,
+			uint16_t, // char16_t and wchar_t will be detected as uint16_t
+			int32_t,
+			uint32_t, // char32_t will be detected as uint32_t
+			int64_t, uint64_t,
+			float, double, long double
+			>;
+
+		template<typename TypeList>
+		static constexpr auto create_pointers_type_list() noexcept
 		{
-			template<typename T>
-			static constexpr void fill(T* values, size_t size) noexcept
-			{
-				fill_impl(values, size, std::make_index_sequence<TypeList::size>{});
-			}
+			return create_pointers_type_list<TypeList>(std::make_index_sequence<TypeList::size>{});
+		}
 
-			template<typename T, size_t... Is>
-			static constexpr void fill_impl(T* values, size_t size, std::index_sequence<Is...>) noexcept
-			{
-				std::pair<size_t, size_t> type_sizes[]{ { Is, sizeof(type_list_element_t<Is, TypeList>) }... };
-				for (int i = 1; i < static_cast<int>(size); ++i)
-				{
-					const auto x = type_sizes[i];
-					int j = i - 1;
-					while (j >= 0 && x.second < type_sizes[j].second)
-					{
-						type_sizes[j + 1].first = type_sizes[j].first;
-						type_sizes[j + 1].second = type_sizes[j].second;
-						--j;
-					}
-					type_sizes[j + 1].first = x.first;
-					type_sizes[j + 1].second = x.second;
-				}
-				static_cast<void>(std::initializer_list<int>{((values[Is] = type_sizes[Is].first), 0)...});
-			}
-		};
+		template<typename TypeList, size_t... Is>
+		static constexpr auto create_pointers_type_list(std::index_sequence<Is...>) noexcept
+		{
+			return type_list
+				<
+					std::add_pointer_t<std::remove_cv_t<type_list_element_t<Is, TypeList>>>...,
+					std::add_pointer_t<std::add_const_t<std::remove_cv_t<type_list_element_t<Is, TypeList>>>>...,
+					std::add_pointer_t<std::add_cv_t<std::remove_cv_t<type_list_element_t<Is, TypeList>>>>
+				...>{};
+		}
 
-		static constexpr constexpr_array<size_t, TypeList::size, types_indexes_sorter> indexes_of_types_sorted_by_size{};
+		static constexpr auto create_full_type_list() noexcept
+		{
+			constexpr type_list<char*, const char*, volatile const char*, void*, const void*, volatile const void*> additional_pointers{};
+			return join_type_lists(create_pointers_type_list<pre_defined_type_list_t>(),
+				join_type_lists(additional_pointers,
+				join_type_lists(pre_defined_type_list_t{}, UserTypeList{})));
+		}
 
+		using full_type_list_t = decltype(create_full_type_list());
+
+	private:
 		struct types_indexes_filler
 		{
 			template<typename T>
@@ -164,7 +192,7 @@ namespace simple_reflection
 			static constexpr size_t detect_index_of_type()
 			{
 				return detect_index_of_type_impl<FieldIndex>(
-					std::make_index_sequence<indexes_of_types_sorted_by_size.size()>{},
+					std::make_index_sequence<full_type_list_t::size>{},
 					std::make_index_sequence<FieldIndex>{},
 					make_index_sequence_range<FieldIndex + 1, fields_count>()
 					);
@@ -186,24 +214,25 @@ namespace simple_reflection
 					Type,
 					decltype(Type{
 						as_any_type<Is1>{}...,
-						type_list_element<indexes_of_types_sorted_by_size[sizeof...(Is0)], TypeList>::get(),
+						type_list_element<sizeof...(Is0), full_type_list_t>::get(),
 						as_any_type<Is2>{}...
 					}) > ::value,
 				size_t>
 				detect_index_of_type_impl(std::index_sequence<I0, Is0...>, std::index_sequence<Is1...>, std::index_sequence<Is2...>)
 			{
-				return indexes_of_types_sorted_by_size[sizeof...(Is0)];
+				return sizeof...(Is0);
 			}
 		};
 	};
 
 	// fields_scanner
 
-	template<typename Type, typename TypeList>
+	template<typename Type, typename UserTypeList>
 	struct fields_scanner
 	{
 		static constexpr auto fields_count = fields_count_detector<Type>::detect();
-		static constexpr auto types_of_fields_indexes = types_of_fields_detector<Type, TypeList>::detect();
+		static constexpr auto types_of_fields_indexes = types_of_fields_detector<Type, UserTypeList>::detect();
+		using full_type_list_t = typename types_of_fields_detector<Type, UserTypeList>::full_type_list_t;
 
 #ifdef _MSC_VER // workaround for MS VC++
 		static constexpr auto detect_types_of_fields()
@@ -220,7 +249,7 @@ namespace simple_reflection
 		template<size_t N, size_t... Is>
 		static constexpr auto detect_types_of_fields(std::true_type)
 		{
-			return type_list<type_list_element_t<Is, TypeList>...>{};
+			return type_list<type_list_element_t<Is, full_type_list_t>...>{};
 		}
 #else
 		static constexpr auto detect_types_of_fields()
@@ -231,7 +260,7 @@ namespace simple_reflection
 		template<size_t... Is>
 		static constexpr auto detect_types_of_fields(std::index_sequence<Is...>)
 		{
-			return type_list<type_list_element_t<types_of_fields_indexes[Is], TypeList>...>{};
+			return type_list<type_list_element_t<types_of_fields_indexes[Is], full_type_list_t>...>{};
 		}
 #endif
 	};

@@ -42,32 +42,27 @@ struct S
 	std::set<int> _15;
 	std::map<std::string, unsigned int> _16;
 
-	float _17[2]; // this field will be detected as 2 float. =(
-	//void* _18; // can't be detected =(
+	void* _17;
+	long double _18;
+
+	float _19[2]; // this field will be detected as 2 float. =(
 };
 
 int main()
 {
 	using type_list_t = simple_reflection::type_list
 		<
-			char, int8_t, int16_t, int32_t, int64_t,
-			uint8_t, uint16_t, uint32_t, uint64_t,
-			float, double,
 			A, B,
-			int8_t*, const int8_t*, char*,
-			int32_t*, const int32_t*,
-			int16_t*, const int16_t*, volatile const int16_t*,
 			std::array<int16_t, 10>, std::array<int8_t, 3>, std::array<char, 3>,
 			std::string, std::wstring,
 			std::vector<int8_t>, std::vector<int16_t>,
 			std::set<int8_t>, std::set<int32_t>,
 			std::map<uint32_t, std::string>, std::map<std::string, uint32_t>
 			//float[2]
-			//void*, const void*, volatile const void*,
 		>;
 
 	using scanner_t = simple_reflection::fields_scanner<S, type_list_t>;
-	static_assert(scanner_t::fields_count == 17 + 1, "!");
+	static_assert(scanner_t::fields_count == 19 + 1, "!");
 	constexpr auto types_of_fields = scanner_t::detect_types_of_fields();
 	static_assert(std::is_same<decltype(types_of_fields),
 		const simple_reflection::type_list<
@@ -87,8 +82,9 @@ int main()
 			std::vector<int16_t>,
 			std::set<int32_t>,
 			std::map<std::string, uint32_t>,
+			void*,
+			long double,
 			float, float // float[2] detects as 2 float
-			//, void*
 		>
 		>::value, "!");
 
