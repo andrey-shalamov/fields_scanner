@@ -44,8 +44,9 @@ struct S
 
 	void* _17;
 	long double _18;
+	bool _19;
 
-	float _19[2]; // this field will be detected as 2 float. =(
+	float _20[2]; // this field will be detected as 2 float. =(
 };
 
 int main()
@@ -62,7 +63,7 @@ int main()
 		>;
 
 	using scanner_t = simple_reflection::fields_scanner<S, type_list_t>;
-	static_assert(scanner_t::fields_count == 19 + 1, "!");
+	static_assert(scanner_t::fields_count == 20 + 1, "!");
 	constexpr auto types_of_fields = scanner_t::detect_types_of_fields();
 	static_assert(std::is_same<decltype(types_of_fields),
 		const simple_reflection::type_list<
@@ -84,6 +85,7 @@ int main()
 			std::map<std::string, uint32_t>,
 			void*,
 			long double,
+			bool,
 			float, float // float[2] detects as 2 float
 		>
 		>::value, "!");
