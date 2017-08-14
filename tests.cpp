@@ -65,7 +65,7 @@ int main()
 		//float[2]
 		>;
 
-	using scanner_t = simple_reflection::fields_scanner<S, type_list_t>;
+	using scanner_t = simple_reflection::fields_scanner<simple_reflection::types_of_fields_detector, S, type_list_t>;
 	static_assert(scanner_t::fields_count == 20 + 1, "!");
 	constexpr auto types_of_fields = scanner_t::detect_types_of_fields();
 	using fields_t = std::decay_t<decltype(types_of_fields)>;
@@ -96,4 +96,35 @@ int main()
 	static_assert(std::is_same<float, get_t<20, fields_t>>::value, "20"); // float[2] detects as 2 float
 
 	return 0;
+}
+
+void test2()
+{ 
+	using type_list_t = simple_reflection::type_list<std::set<int32_t>>;
+	using scanner_t = simple_reflection::fields_scanner<simple_reflection::types_of_fields_rough_estimate, S, type_list_t>;
+	static_assert(scanner_t::fields_count == 20 + 1, "!");
+	constexpr auto types_of_fields = scanner_t::detect_types_of_fields();
+	using fields_t = std::decay_t<decltype(types_of_fields)>;
+	using namespace simple_reflection;
+	static_assert(std::is_same<any_arithmetic, get_t<0, fields_t>>::value, "0");
+	static_assert(std::is_same<any_arithmetic, get_t<1, fields_t>>::value, "1");
+	static_assert(std::is_same<any_arithmetic, get_t<2, fields_t>>::value, "2");
+	static_assert(std::is_same<any_arithmetic, get_t<3, fields_t>>::value, "3");
+	static_assert(std::is_same<any_arithmetic, get_t<4, fields_t>>::value, "4");
+	static_assert(std::is_same<any_arithmetic, get_t<5, fields_t>>::value, "5");
+	static_assert(std::is_same<any_class, get_t<6, fields_t>>::value, "6");
+	static_assert(std::is_same<any_class, get_t<7, fields_t>>::value, "7");
+	static_assert(std::is_same<any_pointer, get_t<8, fields_t>>::value, "8");
+	static_assert(std::is_same<any_pointer, get_t<9, fields_t>>::value, "9");
+	static_assert(std::is_same<any_pointer, get_t<10, fields_t>>::value, "10");
+	static_assert(std::is_same<any_std_array, get_t<11, fields_t>>::value, "11");
+	static_assert(std::is_same<any_std_string, get_t<12, fields_t>>::value, "12");
+	static_assert(std::is_same<any_std_vector, get_t<13, fields_t>>::value, "13");
+	static_assert(std::is_same<std::set<int32_t>, get_t<14, fields_t>>::value, "14");
+	static_assert(std::is_same<any_std_map, get_t<15, fields_t>>::value, "15");
+	static_assert(std::is_same<any_pointer, get_t<16, fields_t>>::value, "16");
+	static_assert(std::is_same<any_arithmetic, get_t<17, fields_t>>::value, "17");
+	static_assert(std::is_same<any_arithmetic, get_t<18, fields_t>>::value, "18");
+	static_assert(std::is_same<any_arithmetic, get_t<19, fields_t>>::value, "19"); // float[2] detects as 2 float
+	static_assert(std::is_same<any_arithmetic, get_t<20, fields_t>>::value, "20"); // float[2] detects as 2 float
 }
