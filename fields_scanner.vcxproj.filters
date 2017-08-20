@@ -18,9 +18,15 @@
     <ClInclude Include="fields_scanner.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="fields_scanner_v2.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="tests.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="tests_v2.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

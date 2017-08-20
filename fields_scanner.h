@@ -64,6 +64,12 @@ namespace simple_reflection
 		constexpr operator T() const noexcept;
 	};
 
+	struct any_template_class
+	{
+		template<template<typename...> class T, typename... Args>
+		constexpr operator T<Args...>() const noexcept;
+	};
+
 	struct any_pointer
 	{
 		template<typename T, typename = std::enable_if_t<std::is_pointer<T>::value>>
@@ -237,12 +243,7 @@ namespace simple_reflection
 	{
 		static constexpr size_t fields_count = fields_count_detector<Type>::detect();
 
-		static constexpr auto create_rough_type_list() noexcept
-		{
-			using rough_type_list_t = type_list<any_pointer, any_arithmetic, any_class, any_std_string, any_std_array, any_std_vector, any_std_map>;
-			return join_type_lists(rough_type_list_t{}, UserTypeList{});
-		}
-		using type_list_t = decltype(create_rough_type_list());
+		using type_list_t = type_list<any_arithmetic, any_pointer, any_class>;
 
 		static constexpr auto detect() noexcept
 		{

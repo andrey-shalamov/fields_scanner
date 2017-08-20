@@ -18,6 +18,11 @@ struct B
 	char c;
 };
 
+struct C
+{
+	B _1;
+};
+
 struct S
 {
 	long long _1;
@@ -100,7 +105,7 @@ int main()
 
 void test2()
 { 
-	using type_list_t = simple_reflection::type_list<std::set<int32_t>>;
+	using type_list_t = simple_reflection::type_list<>;
 	using scanner_t = simple_reflection::fields_scanner<simple_reflection::types_of_fields_rough_estimate, S, type_list_t>;
 	static_assert(scanner_t::fields_count == 20 + 1, "!");
 	constexpr auto types_of_fields = scanner_t::detect_types_of_fields();
@@ -117,11 +122,11 @@ void test2()
 	static_assert(std::is_same<any_pointer, get_t<8, fields_t>>::value, "8");
 	static_assert(std::is_same<any_pointer, get_t<9, fields_t>>::value, "9");
 	static_assert(std::is_same<any_pointer, get_t<10, fields_t>>::value, "10");
-	static_assert(std::is_same<any_std_array, get_t<11, fields_t>>::value, "11");
-	static_assert(std::is_same<any_std_string, get_t<12, fields_t>>::value, "12");
-	static_assert(std::is_same<any_std_vector, get_t<13, fields_t>>::value, "13");
-	static_assert(std::is_same<std::set<int32_t>, get_t<14, fields_t>>::value, "14");
-	static_assert(std::is_same<any_std_map, get_t<15, fields_t>>::value, "15");
+	static_assert(std::is_same<any_class, get_t<11, fields_t>>::value, "11");
+	static_assert(std::is_same<any_class, get_t<12, fields_t>>::value, "12");
+	static_assert(std::is_same<any_class, get_t<13, fields_t>>::value, "13");
+	static_assert(std::is_same<any_class, get_t<14, fields_t>>::value, "14");
+	static_assert(std::is_same<any_class, get_t<15, fields_t>>::value, "15");
 	static_assert(std::is_same<any_pointer, get_t<16, fields_t>>::value, "16");
 	static_assert(std::is_same<any_arithmetic, get_t<17, fields_t>>::value, "17");
 	static_assert(std::is_same<any_arithmetic, get_t<18, fields_t>>::value, "18");
