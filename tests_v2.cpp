@@ -37,15 +37,13 @@ void test01()
 void test02()
 {
 	static_assert(clarify_type<A1, 1, 0, simple_reflection::type_list<A0, int>, template_type_list<>, simple_reflection::any_class>::index() == 0, "!");
-
-	static_assert(clarify_type<B0, 1, 0, simple_reflection::type_list<int>, template_type_list<std::vector, std::map>, simple_reflection::any_class>::index() == 0, "!");
+	static_assert(clarify_type<B0, 1, 0, simple_reflection::type_list<int>, template_type_list<template_type<std::vector, 1>, template_type<std::map, 2>>, simple_reflection::any_class>::index() == 0, "!");
 }
 
 void test03()
 {
-	using tl = template_type_list<std::vector, std::map>;
-	
-	static_assert(std::is_same<std::map<int, int>, template_type_list_element_t<1, tl, int, int>>::value, "!");
+	using tl = template_type_list<template_type<std::vector, 1>, template_type<std::map, 2>>;
+	static_assert(std::is_same<std::vector<int>, template_type_list_element_t<0, tl>::template type<int>>::value, "!");
 }
 
 }

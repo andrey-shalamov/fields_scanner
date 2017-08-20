@@ -43,11 +43,23 @@ struct template_type
 	template<typename... Args>
 	using type = T<Args...>;
 
+	template<typename... Args>
+	static constexpr T<Args...> get() noexcept; // Undefined
+
 	static constexpr size_t args_to_detect = ArgsToDetect;
 };
 
-template<template<typename...> class... Ts>
-struct template_type_list
+template<typename...>
+struct template_type_list;
+
+template<>
+struct template_type_list<>
+{
+	static constexpr size_t size = 0;
+};
+
+template<template<typename...> class... Ts, size_t... Is>
+struct template_type_list<template_type<Ts, Is>...>
 {
 	static constexpr size_t size = sizeof...(Ts);
 };
@@ -55,28 +67,20 @@ struct template_type_list
 template<size_t I, typename T>
 struct template_type_list_element;
 
-template<template<typename...> class T, template<typename...> class... Ts>
+template<typename T, typename... Ts>
 struct template_type_list_element<0, template_type_list<T, Ts...>>
 {
-	template<typename... Args>
-	using type = T<Args...>;
-	
-	template<typename... Args>
-	static constexpr T<Args...> get() noexcept; // Undefined
+	using type = T;
 };
 
-template<size_t I, template<typename...> class T, template<typename...> class... Ts>
+template<size_t I, typename T, typename... Ts>
 struct template_type_list_element<I, template_type_list<T, Ts...>>
 {
-	template<typename... Args>
-	using type = typename template_type_list_element<I - 1, template_type_list<Ts...>>::template type<Args...>;
-	
-	template<typename... Args>
-	static constexpr type<Args...> get() noexcept; // Undefined
+	using type = typename template_type_list_element<I - 1, template_type_list<Ts...>>::type;
 };
 
-template<size_t I, typename TypeList, typename... Args>
-using template_type_list_element_t = typename template_type_list_element<I, TypeList>::template type<Args...>;
+template<size_t I, typename TemplateTypeList>
+using template_type_list_element_t = typename template_type_list_element<I, TemplateTypeList>::type;
 
 //
 
@@ -208,7 +212,7 @@ struct clarify_type<Type, FieldsCount, FieldIndex, UserTypeList, UserTemplateTyp
 	template<size_t... Is>
 	static constexpr auto create_type_list(std::index_sequence<Is...>) noexcept
 	{
-		return type_list<typename specific_template_class_nested_aggregate_constructible<typename template_type_list_element<Is, UserTemplateTypeList>::type >::template count<N>...>{};
+		return type_list<typename specific_template_class_nested_aggregate_constructible<template_type_list_element_t<Is, UserTemplateTypeList>::template type >::template count<N>...>{};
 	}
 
 	using type_list_t = UserTemplateTypeList;
