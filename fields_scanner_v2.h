@@ -215,10 +215,51 @@ struct clarify_type<Type, FieldsCount, FieldIndex, UserTypeList, UserTemplateTyp
 		return type_list<typename specific_template_class_nested_aggregate_constructible<template_type_list_element_t<Is, UserTemplateTypeList>::template type >::template count<N>...>{};
 	}
 
+	using user_template_type_list_t = std::decay_t<decltype(create_type_list())>;
+	static constexpr size_t index_user_template_type = types_indexes_filler<Type, FieldsCount, user_template_type_list_t>::detect_index_of_type<FieldIndex>();
+	
+	template<typename NextType>
+	using next_clarify_type_t = clarify_type<Type, FieldsCount, FieldIndex, UserTypeList, UserTemplateTypeList, NextType>;
+	
+	template<size_t I>
+	struct next_clarify_conditional
+	{
+		using type = next_clarify_type_t<float>;// type_list_element_t<index_user_template_type, user_template_type_list_t >> ;
+	};
+
+	template<>
+	struct next_clarify_conditional<not_found_index>
+	{
+		using type = next_clarify_type_t<int>; // TODO
+	};
+
+	using next_clarify_t = typename next_clarify_conditional<index_user_template_type>::type;
+
+	using type_list_t = typename next_clarify_t::type_list_t;
+	static constexpr size_t index() noexcept
+	{
+		return index_user_template_type != not_found_index ? next_clarify_t::index() : 99;
+	}
+};
+
+template<typename Type, size_t FieldsCount, size_t FieldIndex, typename UserTypeList, typename UserTemplateTypeList>
+struct clarify_type<Type, FieldsCount, FieldIndex, UserTypeList, UserTemplateTypeList, float>
+//struct clarify_type<Type, FieldsCount, FieldIndex, UserTypeList, UserTemplateTypeList, typename specific_template_class_nested_aggregate_constructible<typename template_type<T, I>::template type>::template count<N>>
+{
 	using type_list_t = UserTemplateTypeList;
 	static constexpr size_t index() noexcept
 	{
-		return types_indexes_filler<Type, FieldsCount, std::decay_t<decltype(create_type_list())>>::detect_index_of_type<FieldIndex>();
+		return 88;
+	}
+};
+
+template<typename Type, size_t FieldsCount, size_t FieldIndex, typename UserTypeList, typename UserTemplateTypeList>
+struct clarify_type<Type, FieldsCount, FieldIndex, UserTypeList, UserTemplateTypeList, int>
+{
+	using type_list_t = UserTemplateTypeList;
+	static constexpr size_t index() noexcept
+	{
+		return 77;
 	}
 };
 

@@ -38,6 +38,15 @@ void test02()
 {
 	static_assert(clarify_type<A1, 1, 0, simple_reflection::type_list<A0, int>, template_type_list<>, simple_reflection::any_class>::index() == 0, "!");
 	static_assert(clarify_type<B0, 1, 0, simple_reflection::type_list<int>, template_type_list<template_type<std::vector, 1>, template_type<std::map, 2>>, simple_reflection::any_class>::index() == 0, "!");
+
+	using ctt = clarify_type<B0, 1, 0, simple_reflection::type_list<int>, template_type_list<template_type<std::vector, 1>, template_type<std::map, 2>>, template_class_nested_aggregate_constructible<>::count<1>>;
+	static_assert(std::is_same<simple_reflection::type_list<
+		typename specific_template_class_nested_aggregate_constructible<std::vector>::template count<1>,
+		typename specific_template_class_nested_aggregate_constructible<std::map>::template count<1>
+		>
+	, ctt::user_template_type_list_t>::value, "!");
+
+	static_assert(ctt::index() == 0, "!");
 }
 
 void test03()
