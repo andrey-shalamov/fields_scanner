@@ -1,53 +1,148 @@
 #pragma once
 
-#include "fields_scanner.h"
+#include <type_traits>
+#include <utility>
+#include <cstddef>
+#include <cstdint>
 
 #define PP_EMPTY
 #define PP_COMMA ,
 
-#define DEFINE_NESTED_AGGREGATE_CONSTRUCTIBLE_CLASS_COUNT(N, template_args, type, braces)\
-template<> struct count<N> : count_impl<N> { template<template_args typename = decltype(type braces)> constexpr operator type() const noexcept; };
+#define PP_DEFINE_DEPTH_OF_AGGREGATE_INITIALIZATION(N, template_args, type, braces)\
+template<> struct depth<N> { template<template_args typename = decltype(type braces)> constexpr operator type() const noexcept; };
 
-#define DECLARE_NESTED_AGGREGATE_CONSTRUCTIBLE_CLASS(name, template_args, type)\
-struct name##_nested_aggregate_constructible {\
-	template<size_t N> struct count_impl { static constexpr size_t value = N; };\
-	template<size_t> struct count;\
-	DEFINE_NESTED_AGGREGATE_CONSTRUCTIBLE_CLASS_COUNT(0, template_args, type, {{}})\
-	DEFINE_NESTED_AGGREGATE_CONSTRUCTIBLE_CLASS_COUNT(1, template_args, type, {{{}}})\
-	DEFINE_NESTED_AGGREGATE_CONSTRUCTIBLE_CLASS_COUNT(2, template_args, type, {{{{}}}})\
-	DEFINE_NESTED_AGGREGATE_CONSTRUCTIBLE_CLASS_COUNT(3, template_args, type, {{{{{}}}}})\
-	DEFINE_NESTED_AGGREGATE_CONSTRUCTIBLE_CLASS_COUNT(4, template_args, type, {{{{{{}}}}}})\
-	DEFINE_NESTED_AGGREGATE_CONSTRUCTIBLE_CLASS_COUNT(5, template_args, type, {{{{{{{}}}}}}})\
-	DEFINE_NESTED_AGGREGATE_CONSTRUCTIBLE_CLASS_COUNT(6, template_args, type, {{{{{{{{}}}}}}}})\
+#define PP_DECLARE_DEPTH_OF_AGGREGATE_INITIALIZATION_HELPER(name, template_args, type)\
+struct name##_depth_of_aggregate_initialization_helper {\
+	template<size_t> struct depth;\
+	PP_DEFINE_DEPTH_OF_AGGREGATE_INITIALIZATION(0, template_args, type, {{}})\
+	PP_DEFINE_DEPTH_OF_AGGREGATE_INITIALIZATION(1, template_args, type, {{{}}})\
+	PP_DEFINE_DEPTH_OF_AGGREGATE_INITIALIZATION(2, template_args, type, {{{{}}}})\
+	PP_DEFINE_DEPTH_OF_AGGREGATE_INITIALIZATION(3, template_args, type, {{{{{}}}}})\
+	PP_DEFINE_DEPTH_OF_AGGREGATE_INITIALIZATION(4, template_args, type, {{{{{{}}}}}})\
+	PP_DEFINE_DEPTH_OF_AGGREGATE_INITIALIZATION(5, template_args, type, {{{{{{{}}}}}}})\
+	PP_DEFINE_DEPTH_OF_AGGREGATE_INITIALIZATION(6, template_args, type, {{{{{{{{}}}}}}}})\
 };
+
 namespace simple_reflection
 {
 namespace v2
 {
-DECLARE_NESTED_AGGREGATE_CONSTRUCTIBLE_CLASS(class, typename T PP_COMMA, T)
+PP_DECLARE_DEPTH_OF_AGGREGATE_INITIALIZATION_HELPER(class, typename T PP_COMMA, T)
 
 template<typename... Ts>
-DECLARE_NESTED_AGGREGATE_CONSTRUCTIBLE_CLASS(template_class, template<typename...> class T PP_COMMA typename... Args PP_COMMA, T<Ts... PP_COMMA Args...>)
+PP_DECLARE_DEPTH_OF_AGGREGATE_INITIALIZATION_HELPER(template_class, template<typename...> class T PP_COMMA typename... Args PP_COMMA, T<Ts... PP_COMMA Args...>)
 
 template<typename T>
-DECLARE_NESTED_AGGREGATE_CONSTRUCTIBLE_CLASS(specific_class, PP_EMPTY, T)
+PP_DECLARE_DEPTH_OF_AGGREGATE_INITIALIZATION_HELPER(specific_class, PP_EMPTY, T)
 
 template<template<typename...> class T, typename... Ts>
-DECLARE_NESTED_AGGREGATE_CONSTRUCTIBLE_CLASS(specific_template_class, typename... Args PP_COMMA, T<Ts... PP_COMMA Args...>)
+PP_DECLARE_DEPTH_OF_AGGREGATE_INITIALIZATION_HELPER(specific_template_class, typename... Args PP_COMMA, T<Ts... PP_COMMA Args...>)
 
 static constexpr size_t not_found_index = static_cast<size_t>(-1);
+struct not_found_tag {};
 
-template<template<typename...> class T, size_t ArgsToDetect>
+// index_sequence_range
+
+template<size_t MinIndex, size_t... Is>
+constexpr auto make_index_sequence_range(std::index_sequence<Is...>) noexcept
+{
+	return std::index_sequence<(MinIndex + Is)...>{};
+}
+
+template<size_t MinIndex, size_t MaxIndex>
+constexpr auto make_index_sequence_range() noexcept
+{
+	return make_index_sequence_range<MinIndex>(std::make_index_sequence<MaxIndex - MinIndex>{});
+}
+
+// any
+
+struct any_type
+{
+	template<typename T>
+	constexpr operator T() const noexcept;
+};
+
+template<size_t>
+struct indexed_any_type
+{
+	template<typename T>
+	constexpr operator T() const noexcept;
+};
+
+struct any_arithmetic
+{
+	template<typename T, typename = std::enable_if_t<std::is_arithmetic<T>::value>>
+	constexpr operator T() const noexcept;
+};
+
+struct any_class
+{
+	template<typename T, typename = std::enable_if_t<std::is_class<T>::value>>
+	constexpr operator T() const noexcept;
+};
+
+struct any_pointer
+{
+	template<typename T, typename = std::enable_if_t<std::is_pointer<T>::value>>
+	constexpr operator T() const noexcept;
+};
+
+// type_list
+
+template<typename... Ts>
+struct type_list
+{
+	static constexpr size_t size = sizeof...(Ts);
+};
+
+template<typename TL1, typename TL2>
+struct type_lists_joiner;
+
+template<typename... Ts1, typename... Ts2>
+struct type_lists_joiner<type_list<Ts1...>, type_list<Ts2...>>
+{
+	using type = type_list<Ts1..., Ts2...>;
+};
+
+template<typename TL1, typename TL2>
+using type_lists_joiner_t = typename type_lists_joiner<TL1, TL2>::type;
+
+template<size_t I, typename T>
+struct type_list_element;
+
+template<typename T, typename... Ts>
+struct type_list_element<0, type_list<T, Ts...>>
+{
+	using type = T;
+	static constexpr T get() noexcept; // Undefined
+};
+
+template<size_t I, typename T, typename... Ts>
+struct type_list_element<I, type_list<T, Ts...>>
+{
+	using type = typename type_list_element<I - 1, type_list<Ts...>>::type;
+	static constexpr type get() noexcept; // Undefined
+};
+
+template<size_t I, typename TypeList>
+using type_list_element_t = typename type_list_element<I, TypeList>::type;
+
+// template_type
+
+template<template<typename...> class T, size_t ArgsToDetect, typename... Ts>
 struct template_type
 {
 	template<typename... Args>
-	using type = T<Args...>;
+	using type = T<Ts..., Args...>;
 
 	template<typename... Args>
-	static constexpr T<Args...> get() noexcept; // Undefined
+	static constexpr T<Ts..., Args...> get() noexcept; // Undefined
 
 	static constexpr size_t args_to_detect = ArgsToDetect;
 };
+
+// template_type_list
 
 template<typename...>
 struct template_type_list;
@@ -84,37 +179,62 @@ using template_type_list_element_t = typename template_type_list_element<I, Temp
 
 //
 
-template<typename Type, size_t FieldsCount, typename TypeList>
-struct types_indexes_filler
+using arithmetic_type_list_t = type_list
+<
+	bool,
+	int8_t, uint8_t,
+	int16_t,
+	uint16_t, // char16_t and wchar_t will be detected as uint16_t
+	int32_t,
+	uint32_t, // char32_t will be detected as uint32_t
+	int64_t, uint64_t,
+	float, double, long double
+>;
+
+template<typename TypeList>
+static constexpr auto create_pointers_type_list() noexcept
 {
-	template<typename T>
-	static constexpr void fill(T* values, size_t size) noexcept
-	{
-		static_cast<void>(size);
-		fill_impl(values, std::make_index_sequence<FieldsCount>{});
-	}
+	return create_pointers_type_list<TypeList>(std::make_index_sequence<TypeList::size>{});
+}
 
-	template<typename T, size_t... Is>
-	static constexpr void fill_impl(T* values, std::index_sequence<Is...>) noexcept
-	{
-		static_cast<void>(std::initializer_list<int>{((values[Is] = detect_index_of_type<Is>()), 0)...});
-	}
+template<typename TypeList, size_t... Is>
+static constexpr auto create_pointers_type_list(std::index_sequence<Is...>) noexcept
+{
+	return type_list
+		< std::add_pointer_t<std::remove_cv_t<type_list_element_t<Is, TypeList>>>...
+		, std::add_pointer_t<std::add_const_t<std::remove_cv_t<type_list_element_t<Is, TypeList>>>>...
+		, std::add_pointer_t<std::add_volatile_t<std::remove_cv_t<type_list_element_t<Is, TypeList>>>>...
+		, std::add_pointer_t<std::add_cv_t<std::remove_cv_t<type_list_element_t<Is, TypeList>>>>...
+		>{};
+}
 
+using void_pointers_type_list_t = type_list<void*, const void*, volatile void*, volatile const void*>;
+
+using arithmetic_pointers_type_list_t = type_lists_joiner_t
+<
+	std::decay_t<decltype(create_pointers_type_list<arithmetic_type_list_t>())>,
+	type_list<char*, const char*, volatile char*, volatile const char*>
+>;
+
+//
+
+template<typename Type, size_t FieldsCount, typename TypeList>
+struct field_type_detector
+{
 	template<size_t FieldIndex>
-	static constexpr size_t detect_index_of_type() noexcept
+	static constexpr size_t index() noexcept
 	{
-		constexpr size_t result = detect_index_of_type_impl(
+		return index_impl(
 			std::make_index_sequence<TypeList::size>{},
 			std::make_index_sequence<FieldIndex>{},
 			make_index_sequence_range<FieldIndex + 1, FieldsCount>()
-			);
-		return result;
+		);;
 	}
 
 	template<size_t... Is0, size_t... Is1, size_t... Is2>
-	static constexpr size_t detect_index_of_type_impl(std::index_sequence<Is0...>, std::index_sequence<Is1...> is1, std::index_sequence<Is2...> is2) noexcept
+	static constexpr size_t index_impl(std::index_sequence<Is0...>, std::index_sequence<Is1...> is1, std::index_sequence<Is2...> is2) noexcept
 	{
-		return detect_index_of_type_impl(std::make_index_sequence<sizeof...(Is0)-1>{}, is1, is2);
+		return index_impl(std::make_index_sequence<sizeof...(Is0)-1>{}, is1, is2);
 	}
 
 	template<size_t I0, size_t... Is0, size_t... Is1, size_t... Is2>
@@ -122,18 +242,18 @@ struct types_indexes_filler
 		std::is_same<
 			Type,
 			decltype(Type{
-			as_any_type<Is1>{}...,
+			indexed_any_type<Is1>{}...,
 			type_list_element<sizeof...(Is0), TypeList>::get(),
-			as_any_type<Is2>{}...
+			indexed_any_type<Is2>{}...
 		}) > ::value,
 		size_t>
-		detect_index_of_type_impl(std::index_sequence<I0, Is0...>, std::index_sequence<Is1...>, std::index_sequence<Is2...>) noexcept
+		index_impl(std::index_sequence<I0, Is0...>, std::index_sequence<Is1...>, std::index_sequence<Is2...>) noexcept
 	{
 		return sizeof...(Is0);
 	}
 
 	template<size_t... Is1, size_t... Is2>
-	static constexpr size_t detect_index_of_type_impl(std::index_sequence<>, std::index_sequence<Is1...>, std::index_sequence<Is2...>) noexcept
+	static constexpr size_t index_impl(std::index_sequence<>, std::index_sequence<Is1...>, std::index_sequence<Is2...>) noexcept
 	{
 		return not_found_index;
 	}
@@ -141,38 +261,74 @@ struct types_indexes_filler
 
 //
 
-constexpr size_t max_nested_aggregate_constructible = 7;
-
-template<typename NestedAggregateConstructible, size_t N>
-constexpr auto create_nested_aggregate_constructible_type_list() noexcept
-{
-	return create_nested_aggregate_constructible_type_list<NestedAggregateConstructible>(std::make_index_sequence<N>{});
-}
-
-template<typename NestedAggregateConstructible, size_t... Is>
-constexpr auto create_nested_aggregate_constructible_type_list(std::index_sequence<Is...>) noexcept
-{
-	return type_list<NestedAggregateConstructible::template count<Is>...>{};
-}
-
-//
-
-template<typename Type, size_t FieldsCount, size_t FieldIndex, typename UserTypeList, typename UserTemplateTypeList, typename TypeToClarify>
+template<typename Type, size_t FieldsCount, size_t FieldIndex, typename UserTypeList, typename UserTemplateTypeList, size_t DepthOfAggInit, typename TypeToClarify>
 struct clarify_type;
 
-template<typename Type, size_t FieldsCount, size_t FieldIndex, typename UserTypeList, typename UserTemplateTypeList>
-struct clarify_type<Type, FieldsCount, FieldIndex, UserTypeList, UserTemplateTypeList, any_class>
+template<typename Type, size_t FieldsCount, size_t FieldIndex, typename UserTypeList, typename UserTemplateTypeList, size_t DepthOfAggInit, typename TypeToClarify>
+struct clarify_type;
+
+template<typename Type, size_t FieldsCount, size_t FieldIndex, typename UserTypeList, typename UserTemplateTypeList, size_t DepthOfAggInit>
+struct clarify_type<Type, FieldsCount, FieldIndex, UserTypeList, UserTemplateTypeList, DepthOfAggInit, not_found_tag>
 {
-	static constexpr auto tmp_tl = create_nested_aggregate_constructible_type_list<class_nested_aggregate_constructible, max_nested_aggregate_constructible>();
-	using tmp_tl_t = std::decay_t<decltype(tmp_tl)>;
-	static constexpr size_t tmp_index = types_indexes_filler<Type, FieldsCount, tmp_tl_t>::detect_index_of_type<FieldIndex>();
-	using next_stage_t = clarify_type<Type, FieldsCount, FieldIndex, UserTypeList, UserTemplateTypeList, type_list_element_t<tmp_index, tmp_tl_t>>;
+	using type_list_t = type_list<>;
+	static constexpr size_t index() noexcept { return not_found_index; }
+};
+
+template<typename Type, size_t FieldsCount, size_t FieldIndex, typename UserTypeList, typename UserTemplateTypeList, size_t DepthOfAggInit>
+struct clarify_type<Type, FieldsCount, FieldIndex, UserTypeList, UserTemplateTypeList, DepthOfAggInit, any_type>
+{
+	using rough_estimate_type_list_t = type_list<any_arithmetic, any_pointer, any_class>;
+	static constexpr size_t rough_estimate_type_index = field_type_detector<Type, FieldsCount, rough_estimate_type_list_t>::index<FieldIndex>();
+	using next_stage_t = clarify_type<Type, FieldsCount, FieldIndex, UserTypeList, UserTemplateTypeList, DepthOfAggInit, type_list_element_t<rough_estimate_type_index, rough_estimate_type_list_t>>;
 	using type_list_t = typename next_stage_t::type_list_t;
 	static constexpr size_t index() noexcept { return next_stage_t::index(); }
 };
 
-template<typename Type, size_t FieldsCount, size_t FieldIndex, typename UserTypeList, typename UserTemplateTypeList, size_t N>
-struct clarify_type<Type, FieldsCount, FieldIndex, UserTypeList, UserTemplateTypeList, class_nested_aggregate_constructible::count<N>>
+template<typename Type, size_t FieldsCount, size_t FieldIndex, typename UserTypeList, size_t DepthOfAggInit, typename UserTemplateTypeList>
+struct clarify_type<Type, FieldsCount, FieldIndex, UserTypeList, UserTemplateTypeList, DepthOfAggInit, any_arithmetic>
+{
+	using type_list_t = arithmetic_type_list_t;
+	static constexpr size_t index() noexcept { return field_type_detector<Type, FieldsCount, arithmetic_type_list_t>::index<FieldIndex>(); }
+};
+
+template<typename Type, size_t FieldsCount, size_t FieldIndex, typename UserTypeList, size_t DepthOfAggInit, typename UserTemplateTypeList>
+struct clarify_type<Type, FieldsCount, FieldIndex, UserTypeList, UserTemplateTypeList, DepthOfAggInit, any_pointer>
+{
+	using type_list_t = type_lists_joiner_t<arithmetic_pointers_type_list_t,
+		type_lists_joiner_t
+		<
+		std::decay_t<decltype(create_pointers_type_list<UserTypeList>())>,
+		void_pointers_type_list_t
+		>
+	>;
+	static constexpr size_t index() noexcept { return field_type_detector<Type, FieldsCount, type_list_t>::index<FieldIndex>(); }
+};
+
+template<typename Type, size_t FieldsCount, size_t FieldIndex, typename UserTypeList, size_t DepthOfAggInit, typename UserTemplateTypeList>
+struct clarify_type<Type, FieldsCount, FieldIndex, UserTypeList, UserTemplateTypeList, DepthOfAggInit, any_class>
+{
+	static constexpr size_t max_depth_of_aggregate_initialization = 7;
+
+	static constexpr auto create_type_list() noexcept
+	{
+		return create_type_list(std::make_index_sequence<max_depth_of_aggregate_initialization>{});
+	}
+
+	template<size_t... Is>
+	static constexpr auto create_type_list(std::index_sequence<Is...>) noexcept
+	{
+		return type_list<class_depth_of_aggregate_initialization_helper::depth<Is>...>{};
+	}
+
+	using depth_of_aggregate_initialization_helper_type_list_t = std::decay_t<decltype(create_type_list())>;
+	static constexpr size_t aggregate_constructible_depth = field_type_detector<Type, FieldsCount, depth_of_aggregate_initialization_helper_type_list_t>::index<FieldIndex>();
+	using next_stage_t = clarify_type<Type, FieldsCount, FieldIndex, UserTypeList, UserTemplateTypeList, aggregate_constructible_depth, class_depth_of_aggregate_initialization_helper>;
+	using type_list_t = typename next_stage_t::type_list_t;
+	static constexpr size_t index() noexcept { return next_stage_t::index(); }
+};
+
+template<typename Type, size_t FieldsCount, size_t FieldIndex, typename UserTypeList, typename UserTemplateTypeList, size_t DepthOfAggInit>
+struct clarify_type<Type, FieldsCount, FieldIndex, UserTypeList, UserTemplateTypeList, DepthOfAggInit, class_depth_of_aggregate_initialization_helper>
 {
 	static constexpr auto create_type_list() noexcept
 	{
@@ -182,14 +338,14 @@ struct clarify_type<Type, FieldsCount, FieldIndex, UserTypeList, UserTemplateTyp
 	template<size_t... Is>
 	static constexpr auto create_type_list(std::index_sequence<Is...>) noexcept
 	{
-		return type_list<typename specific_class_nested_aggregate_constructible<type_list_element_t<Is, UserTypeList>>::template count<N>...>{};
+		return type_list<typename specific_class_depth_of_aggregate_initialization_helper<type_list_element_t<Is, UserTypeList>>::template depth<DepthOfAggInit>...>{};
 	}
 
-	static constexpr bool is_template = types_indexes_filler<Type, FieldsCount, type_list<template_class_nested_aggregate_constructible<>::count<N>>>::detect_index_of_type<FieldIndex>() == 0;
-	using template_type_clarify_t = clarify_type<Type, FieldsCount, FieldIndex, UserTypeList, UserTemplateTypeList, template_class_nested_aggregate_constructible<>::count<N>>;
+	static constexpr bool is_template = field_type_detector<Type, FieldsCount, type_list<template_class_depth_of_aggregate_initialization_helper<>::depth<DepthOfAggInit>>>::index<FieldIndex>() == 0;
+	using template_type_clarify_t = clarify_type<Type, FieldsCount, FieldIndex, UserTypeList, UserTemplateTypeList, DepthOfAggInit, template_class_depth_of_aggregate_initialization_helper<>>;
 
-	static constexpr size_t index_user_type = types_indexes_filler<Type, FieldsCount, std::decay_t<decltype(create_type_list())>>::detect_index_of_type<FieldIndex>();
-	using type_list_t = std::conditional_t<is_template, typename template_type_clarify_t::type_list_t, UserTypeList>;
+	static constexpr size_t index_user_type = field_type_detector<Type, FieldsCount, std::decay_t<decltype(create_type_list())>>::index<FieldIndex>();
+	using type_list_t = std::conditional_t<index_user_type != not_found_index, UserTypeList, typename template_type_clarify_t::type_list_t>;
 	static constexpr size_t index() noexcept
 	{
 		if (index_user_type != not_found_index)
@@ -197,12 +353,12 @@ struct clarify_type<Type, FieldsCount, FieldIndex, UserTypeList, UserTemplateTyp
 		else if (is_template)
 			return template_type_clarify_t::index();
 		else
-			static_assert(index_user_type != not_found_index || is_template, "type cannot be clarifyed");
+			static_assert(index_user_type != not_found_index || is_template, "type cannot be clarified");
 	}
 };
 
-template<typename Type, size_t FieldsCount, size_t FieldIndex, typename UserTypeList, typename UserTemplateTypeList, size_t N>
-struct clarify_type<Type, FieldsCount, FieldIndex, UserTypeList, UserTemplateTypeList, template_class_nested_aggregate_constructible<>::count<N>>
+template<typename Type, size_t FieldsCount, size_t FieldIndex, typename UserTypeList, typename UserTemplateTypeList, size_t DepthOfAggInit>
+struct clarify_type<Type, FieldsCount, FieldIndex, UserTypeList, UserTemplateTypeList, DepthOfAggInit, template_class_depth_of_aggregate_initialization_helper<>>
 {
 	static constexpr auto create_type_list() noexcept
 	{
@@ -212,55 +368,128 @@ struct clarify_type<Type, FieldsCount, FieldIndex, UserTypeList, UserTemplateTyp
 	template<size_t... Is>
 	static constexpr auto create_type_list(std::index_sequence<Is...>) noexcept
 	{
-		return type_list<typename specific_template_class_nested_aggregate_constructible<template_type_list_element_t<Is, UserTemplateTypeList>::template type >::template count<N>...>{};
+		return type_list<typename specific_template_class_depth_of_aggregate_initialization_helper<template_type_list_element_t<Is, UserTemplateTypeList>::template type >::template depth<DepthOfAggInit>...>{};
 	}
 
 	using user_template_type_list_t = std::decay_t<decltype(create_type_list())>;
-	static constexpr size_t index_user_template_type = types_indexes_filler<Type, FieldsCount, user_template_type_list_t>::detect_index_of_type<FieldIndex>();
+	static constexpr size_t index_user_template_type = field_type_detector<Type, FieldsCount, user_template_type_list_t>::index<FieldIndex>();
 	
 	template<typename NextType>
-	using next_clarify_type_t = clarify_type<Type, FieldsCount, FieldIndex, UserTypeList, UserTemplateTypeList, NextType>;
+	using next_clarify_type_t = clarify_type<Type, FieldsCount, FieldIndex, UserTypeList, UserTemplateTypeList, DepthOfAggInit, NextType>;
 	
 	template<size_t I>
 	struct next_clarify_conditional
 	{
-		using type = next_clarify_type_t<float>;// type_list_element_t<index_user_template_type, user_template_type_list_t >> ;
+		using type = next_clarify_type_t<template_type_list_element_t<index_user_template_type, UserTemplateTypeList>>;
 	};
 
 	template<>
 	struct next_clarify_conditional<not_found_index>
 	{
-		using type = next_clarify_type_t<int>; // TODO
+		using type = next_clarify_type_t<not_found_tag>;
 	};
 
 	using next_clarify_t = typename next_clarify_conditional<index_user_template_type>::type;
 
 	using type_list_t = typename next_clarify_t::type_list_t;
-	static constexpr size_t index() noexcept
+	static constexpr size_t index() noexcept { return next_clarify_t::index(); }
+};
+
+template<typename Type, size_t FieldsCount, size_t FieldIndex, typename UserTypeList, typename UserTemplateTypeList, size_t DepthOfAggInit, template<typename...> class TemplateType, size_t ArgsToDetect, typename... Args>
+struct clarify_type<Type, FieldsCount, FieldIndex, UserTypeList, UserTemplateTypeList, DepthOfAggInit, template_type<TemplateType, ArgsToDetect, Args...>>
+{
+	using type_list_of_template_parameters = type_lists_joiner_t<
+		arithmetic_pointers_type_list_t,
+		type_lists_joiner_t
+		<
+		std::decay_t<decltype(create_pointers_type_list<UserTypeList>())>,
+		type_lists_joiner_t<
+			void_pointers_type_list_t,
+			type_lists_joiner_t<arithmetic_type_list_t, UserTypeList>
+		>>>;
+
+	static constexpr auto create_type_list() noexcept
 	{
-		return index_user_template_type != not_found_index ? next_clarify_t::index() : 99;
+		return create_type_list(std::make_index_sequence<type_list_of_template_parameters::size>{});
+	}
+
+	template<size_t... Is>
+	static constexpr auto create_type_list(std::index_sequence<Is...>) noexcept
+	{
+		return type_list<typename specific_template_class_depth_of_aggregate_initialization_helper<TemplateType, Args..., type_list_element_t<Is, type_list_of_template_parameters>>::template depth<DepthOfAggInit>...>{};
+	}
+
+	using specific_template_with_args_type_list_t = std::decay_t<decltype(create_type_list())>;
+	static constexpr size_t index_specific_template_with_args = field_type_detector<Type, FieldsCount, specific_template_with_args_type_list_t>::index<FieldIndex>();
+
+	using next_clarify_t = clarify_type<Type, FieldsCount, FieldIndex, UserTypeList, UserTemplateTypeList, DepthOfAggInit,
+		std::conditional_t<index_specific_template_with_args == not_found_index, not_found_tag,
+		template_type<TemplateType, ArgsToDetect - 1, Args..., type_list_element_t<index_specific_template_with_args, type_list_of_template_parameters>>
+		>>;
+
+	using type_list_t = typename next_clarify_t::type_list_t;
+	static constexpr size_t index() noexcept { return next_clarify_t::index(); }
+};
+
+template<typename Type, size_t FieldsCount, size_t FieldIndex, typename UserTypeList, typename UserTemplateTypeList, size_t DepthOfAggInit, template<typename...> class TemplateType, typename... Args>
+struct clarify_type<Type, FieldsCount, FieldIndex, UserTypeList, UserTemplateTypeList, DepthOfAggInit, template_type<TemplateType, 0, Args...>>
+{
+	using type_list_t = type_list<template_type<TemplateType, sizeof...(Args), Args...>>;
+	static constexpr size_t index() noexcept { return 0; }
+};
+
+// fields_count_detector
+
+template<typename T>
+struct fields_count_detector
+{
+	static constexpr size_t detect() noexcept
+	{
+		// TODO: bit fields
+		return detect_impl(std::make_index_sequence<sizeof(T)>{});
+	}
+private:
+	template<size_t... Is>
+	static constexpr size_t detect_impl(std::index_sequence<Is...>) noexcept
+	{
+		return detect_impl(std::make_index_sequence<sizeof...(Is)-1>{});
+	}
+
+	static constexpr size_t detect_impl(std::index_sequence<>) noexcept
+	{
+		return 0;
+	}
+
+	template<size_t I0, size_t... Is>
+	static constexpr std::enable_if_t < std::is_same < T, decltype(T{ indexed_any_type<I0>{}, indexed_any_type<Is>{}... }) > ::value, size_t >
+		detect_impl(std::index_sequence<I0, Is...>) noexcept
+	{
+		return 1 + sizeof...(Is);
 	}
 };
 
-template<typename Type, size_t FieldsCount, size_t FieldIndex, typename UserTypeList, typename UserTemplateTypeList>
-struct clarify_type<Type, FieldsCount, FieldIndex, UserTypeList, UserTemplateTypeList, float>
-//struct clarify_type<Type, FieldsCount, FieldIndex, UserTypeList, UserTemplateTypeList, typename specific_template_class_nested_aggregate_constructible<typename template_type<T, I>::template type>::template count<N>>
-{
-	using type_list_t = UserTemplateTypeList;
-	static constexpr size_t index() noexcept
-	{
-		return 88;
-	}
-};
+// fields_scanner
 
-template<typename Type, size_t FieldsCount, size_t FieldIndex, typename UserTypeList, typename UserTemplateTypeList>
-struct clarify_type<Type, FieldsCount, FieldIndex, UserTypeList, UserTemplateTypeList, int>
+template<typename Type, typename UserTypeList = type_list<>, typename UserTemplateTypeList = template_type_list<>>
+struct fields_scanner
 {
-	using type_list_t = UserTemplateTypeList;
-	static constexpr size_t index() noexcept
+	static constexpr auto fields_count = fields_count_detector<Type>::detect();
+
+	template<size_t N, typename... Ts>
+	struct scanner_impl
 	{
-		return 77;
-	}
+		using clarify_type_t = clarify_type<Type, fields_count, N - 1, UserTypeList, UserTemplateTypeList, 0, any_type>;
+		using type_list_t = typename scanner_impl<N - 1, type_list_element_t<clarify_type_t::index(), typename clarify_type_t::type_list_t>, Ts...>::type_list_t;
+	};
+
+	template<typename... Ts>
+	struct scanner_impl<0, Ts...>
+	{
+		using type_list_t = type_list<Ts...>;
+	};
+
+	using type_list_t = typename scanner_impl<fields_count>::type_list_t;
+
 };
 
 }
