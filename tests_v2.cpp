@@ -25,18 +25,18 @@ using namespace simple_reflection::v2;
 void test01()
 {
 	static_assert(std::is_class<decltype(A0{ any_arithmetic{} }) > ::value, "!");
-	static_assert(std::is_class<decltype(A1{ gettt<class_depth_of_aggregate_initialization_helper::depth<0>>() }) > ::value, "!");
-	static_assert(std::is_class<decltype(A2{ class_depth_of_aggregate_initialization_helper::depth<1>{} }) > ::value, "!");
+	static_assert(std::is_class<decltype(A1{ gettt<class_depth_of_aggregate_initialization_helper<0>>() }) > ::value, "!");
+	static_assert(std::is_class<decltype(A2{ class_depth_of_aggregate_initialization_helper<1>{} }) > ::value, "!");
 	
-	static_assert(std::is_class<decltype(B0{ class_depth_of_aggregate_initialization_helper::depth<1>{} }) > ::value, "!");
-	static_assert(std::is_class<decltype(B0{ template_class_depth_of_aggregate_initialization_helper<int>::depth<1>{} }) > ::value, "!");
-	static_assert(std::is_class<decltype(B0{ specific_template_class_depth_of_aggregate_initialization_helper<std::vector, int>::depth<1>{} }) > ::value, "!");
-	static_assert(std::is_class<decltype(B0{ specific_class_depth_of_aggregate_initialization_helper<std::vector<int>>::depth<1>{} }) > ::value, "!");
-	static_assert(std::is_class<decltype(B1{ class_depth_of_aggregate_initialization_helper::depth<2>{} }) > ::value, "!");
-	static_assert(std::is_class<decltype(B2{ class_depth_of_aggregate_initialization_helper::depth<3>{} }) > ::value, "!");
+	static_assert(std::is_class<decltype(B0{ class_depth_of_aggregate_initialization_helper<1>{} }) > ::value, "!");
+	static_assert(std::is_class<decltype(B0{ template_class_depth_of_aggregate_initialization_helper<1, int>{} }) > ::value, "!");
+	static_assert(std::is_class<decltype(B0{ specific_template_class_depth_of_aggregate_initialization_helper<1, std::vector, int>{} }) > ::value, "!");
+	static_assert(std::is_class<decltype(B0{ specific_class_depth_of_aggregate_initialization_helper<1, std::vector<int>>{} }) > ::value, "!");
+	static_assert(std::is_class<decltype(B1{ class_depth_of_aggregate_initialization_helper<2>{} }) > ::value, "!");
+	static_assert(std::is_class<decltype(B2{ class_depth_of_aggregate_initialization_helper<3>{} }) > ::value, "!");
 
-	static_assert(std::is_class<decltype(B2{ specific_class_depth_of_aggregate_initialization_helper<B0>::depth<2>{} }) > ::value, "!");
-	static_assert(std::is_class<decltype(B2{ specific_class_depth_of_aggregate_initialization_helper<B1>::depth<3>{} }) > ::value, "!");
+	static_assert(std::is_class<decltype(B2{ specific_class_depth_of_aggregate_initialization_helper<2, B0>{} }) > ::value, "!");
+	static_assert(std::is_class<decltype(B2{ specific_class_depth_of_aggregate_initialization_helper<3, B1>{} }) > ::value, "!");
 }
 
 void test02()
