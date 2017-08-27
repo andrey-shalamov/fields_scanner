@@ -8,33 +8,50 @@
 #define PP_EMPTY
 #define PP_ARG(...) __VA_ARGS__
 
-#define PP_DECLARE_DEPTH_OF_AGGREGATE_INITIALIZATION_HELPER(name, helper_template_params, helper_template_args, N, template_args, type, braces)\
-template<helper_template_params> struct name##_depth_of_aggregate_initialization_helper<N helper_template_args> { template<template_args typename = decltype(type braces)> constexpr operator type() const noexcept; };
+#define PP_DECLARE_DEPTH_OF_AGGREGATE_INITIALIZATION_HELPER(name, N, helper_template_params, helper_template_args, template_args, type, braces)\
+template<typename main_struct helper_template_params>\
+struct name##_depth_of_aggregate_initialization_helper<main_struct, N helper_template_args> {\
+	template<template_args\
+	  typename = std::enable_if_t<std::is_class<type>::value>\
+	, typename = std::enable_if_t<!std::is_same<type, main_struct>::value>\
+	, typename = decltype(type braces)\
+	>\
+	constexpr operator type() const noexcept;\
+};
 
-#define PP_DECLARE_DEPTH_OF_AGGREGATE_INITIALIZATION_HELPERS(name, comma, helper_template_params, helper_template_args, template_args, type)\
+#define PP_DECLARE_DEPTH_OF_AGGREGATE_INITIALIZATION_HELPERS(name, helper_template_params, helper_template_args, template_args, type)\
 struct name##_depth_of_aggregate_initialization_tag{};\
-template<size_t comma helper_template_params> struct name##_depth_of_aggregate_initialization_helper;\
-PP_DECLARE_DEPTH_OF_AGGREGATE_INITIALIZATION_HELPER(name, PP_ARG(helper_template_params), PP_ARG(helper_template_args), 0, PP_ARG(template_args), PP_ARG(type), {{}})\
-PP_DECLARE_DEPTH_OF_AGGREGATE_INITIALIZATION_HELPER(name, PP_ARG(helper_template_params), PP_ARG(helper_template_args), 1, PP_ARG(template_args), PP_ARG(type), {{{}}})\
-PP_DECLARE_DEPTH_OF_AGGREGATE_INITIALIZATION_HELPER(name, PP_ARG(helper_template_params), PP_ARG(helper_template_args), 2, PP_ARG(template_args), PP_ARG(type), {{{{}}}})\
-PP_DECLARE_DEPTH_OF_AGGREGATE_INITIALIZATION_HELPER(name, PP_ARG(helper_template_params), PP_ARG(helper_template_args), 3, PP_ARG(template_args), PP_ARG(type), {{{{{}}}}})\
-PP_DECLARE_DEPTH_OF_AGGREGATE_INITIALIZATION_HELPER(name, PP_ARG(helper_template_params), PP_ARG(helper_template_args), 4, PP_ARG(template_args), PP_ARG(type), {{{{{{}}}}}})\
-PP_DECLARE_DEPTH_OF_AGGREGATE_INITIALIZATION_HELPER(name, PP_ARG(helper_template_params), PP_ARG(helper_template_args), 5, PP_ARG(template_args), PP_ARG(type), {{{{{{{}}}}}}})\
-PP_DECLARE_DEPTH_OF_AGGREGATE_INITIALIZATION_HELPER(name, PP_ARG(helper_template_params), PP_ARG(helper_template_args), 6, PP_ARG(template_args), PP_ARG(type), {{{{{{{{}}}}}}}})
+template<typename,size_t helper_template_params> struct name##_depth_of_aggregate_initialization_helper;\
+PP_DECLARE_DEPTH_OF_AGGREGATE_INITIALIZATION_HELPER(name, 0, PP_ARG(helper_template_params), PP_ARG(helper_template_args), PP_ARG(template_args), PP_ARG(type), {{}})\
+PP_DECLARE_DEPTH_OF_AGGREGATE_INITIALIZATION_HELPER(name, 1, PP_ARG(helper_template_params), PP_ARG(helper_template_args), PP_ARG(template_args), PP_ARG(type), {{{}}})\
+PP_DECLARE_DEPTH_OF_AGGREGATE_INITIALIZATION_HELPER(name, 2, PP_ARG(helper_template_params), PP_ARG(helper_template_args), PP_ARG(template_args), PP_ARG(type), {{{{}}}})\
+PP_DECLARE_DEPTH_OF_AGGREGATE_INITIALIZATION_HELPER(name, 3, PP_ARG(helper_template_params), PP_ARG(helper_template_args), PP_ARG(template_args), PP_ARG(type), {{{{{}}}}})\
+PP_DECLARE_DEPTH_OF_AGGREGATE_INITIALIZATION_HELPER(name, 4, PP_ARG(helper_template_params), PP_ARG(helper_template_args), PP_ARG(template_args), PP_ARG(type), {{{{{{}}}}}})\
+PP_DECLARE_DEPTH_OF_AGGREGATE_INITIALIZATION_HELPER(name, 5, PP_ARG(helper_template_params), PP_ARG(helper_template_args), PP_ARG(template_args), PP_ARG(type), {{{{{{{}}}}}}})\
+PP_DECLARE_DEPTH_OF_AGGREGATE_INITIALIZATION_HELPER(name, 6, PP_ARG(helper_template_params), PP_ARG(helper_template_args), PP_ARG(template_args), PP_ARG(type), {{{{{{{{}}}}}}}})
 
 namespace simple_reflection
 {
 namespace v2
 {
 
-PP_DECLARE_DEPTH_OF_AGGREGATE_INITIALIZATION_HELPERS(class, PP_EMPTY, PP_EMPTY, PP_EMPTY, PP_ARG(typename T, ), T)
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic error "-Wmany-braces-around-scalar-init"
+#pragma clang diagnostic ignored "-Wundefined-inline"
+#endif
 
-PP_DECLARE_DEPTH_OF_AGGREGATE_INITIALIZATION_HELPERS(template_class, PP_ARG(,), PP_ARG(typename... Ts), PP_ARG(, Ts...), PP_ARG(template<typename...> class T, typename... Args, ), PP_ARG(T<Ts..., Args...>))
+PP_DECLARE_DEPTH_OF_AGGREGATE_INITIALIZATION_HELPERS(class, PP_EMPTY, PP_EMPTY, PP_ARG(typename T, ), T)
 
-PP_DECLARE_DEPTH_OF_AGGREGATE_INITIALIZATION_HELPERS(specific_class, PP_ARG(,), typename T, PP_ARG(, T), PP_EMPTY, T)
+PP_DECLARE_DEPTH_OF_AGGREGATE_INITIALIZATION_HELPERS(template_class, PP_ARG(, typename... Ts), PP_ARG(, Ts...), PP_ARG(template<typename...> class T, typename... Args, ), PP_ARG(T<Ts..., Args...>))
 
-PP_DECLARE_DEPTH_OF_AGGREGATE_INITIALIZATION_HELPERS(specific_template_class, PP_ARG(, ), PP_ARG(template<typename...> class T, typename... Ts), PP_ARG(, T, Ts...), PP_ARG(typename... Args, ), PP_ARG(T<Ts..., Args...>))
+PP_DECLARE_DEPTH_OF_AGGREGATE_INITIALIZATION_HELPERS(specific_class, PP_ARG(, typename T), PP_ARG(, T), PP_EMPTY, T)
 
+PP_DECLARE_DEPTH_OF_AGGREGATE_INITIALIZATION_HELPERS(specific_template_class, PP_ARG(, template<typename...> class T, typename... Ts), PP_ARG(, T, Ts...), PP_ARG(typename... Args, ), PP_ARG(T<Ts..., Args...>))
+
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
 
 static constexpr size_t not_found_index = static_cast<size_t>(-1);
 struct not_found_tag {};
@@ -312,7 +329,7 @@ struct clarify_type<Type, FieldsCount, FieldIndex, UserTypeList, UserTemplateTyp
 	template<size_t... Is>
 	static constexpr auto create_type_list(std::index_sequence<Is...>) noexcept
 	{
-		return type_list<class_depth_of_aggregate_initialization_helper<Is>...>{};
+		return type_list<class_depth_of_aggregate_initialization_helper<Type, Is>...>{};
 	}
 
 	using depth_of_aggregate_initialization_helper_type_list_t = std::decay_t<decltype(create_type_list())>;
@@ -333,10 +350,10 @@ struct clarify_type<Type, FieldsCount, FieldIndex, UserTypeList, UserTemplateTyp
 	template<size_t... Is>
 	static constexpr auto create_type_list(std::index_sequence<Is...>) noexcept
 	{
-		return type_list<specific_class_depth_of_aggregate_initialization_helper<DepthOfAggInit, type_list_element_t<Is, UserTypeList>>...>{};
+		return type_list<specific_class_depth_of_aggregate_initialization_helper<Type, DepthOfAggInit, type_list_element_t<Is, UserTypeList>>...>{};
 	}
 
-	static constexpr bool is_template = field_type_detector<Type, FieldsCount, type_list<template_class_depth_of_aggregate_initialization_helper<DepthOfAggInit>>>::template index<FieldIndex>() == 0;
+	static constexpr bool is_template = field_type_detector<Type, FieldsCount, type_list<template_class_depth_of_aggregate_initialization_helper<Type, DepthOfAggInit>>>::template index<FieldIndex>() == 0;
 	using template_type_clarify_t = clarify_type<Type, FieldsCount, FieldIndex, UserTypeList, UserTemplateTypeList, DepthOfAggInit, template_class_depth_of_aggregate_initialization_tag>;
 
 	static constexpr size_t index_user_type = field_type_detector<Type, FieldsCount, std::decay_t<decltype(create_type_list())>>::template index<FieldIndex>();
@@ -375,7 +392,7 @@ struct clarify_type<Type, FieldsCount, FieldIndex, UserTypeList, UserTemplateTyp
 	template<size_t... Is>
 	static constexpr auto create_type_list(std::index_sequence<Is...>) noexcept
 	{
-		return type_list<specific_template_class_depth_of_aggregate_initialization_helper<DepthOfAggInit, template_type_list_element_t<Is, UserTemplateTypeList>::template type >...>{};
+		return type_list<specific_template_class_depth_of_aggregate_initialization_helper<Type, DepthOfAggInit, template_type_list_element_t<Is, UserTemplateTypeList>::template type >...>{};
 	}
 
 	using user_template_type_list_t = std::decay_t<decltype(create_type_list())>;
@@ -406,7 +423,7 @@ struct clarify_type<Type, FieldsCount, FieldIndex, UserTypeList, UserTemplateTyp
 	template<size_t... Is>
 	static constexpr auto create_type_list(std::index_sequence<Is...>) noexcept
 	{
-		return type_list<specific_template_class_depth_of_aggregate_initialization_helper<DepthOfAggInit, TemplateType, Args..., type_list_element_t<Is, type_list_of_template_parameters>>...>{};
+		return type_list<specific_template_class_depth_of_aggregate_initialization_helper<Type, DepthOfAggInit, TemplateType, Args..., type_list_element_t<Is, type_list_of_template_parameters>>...>{};
 	}
 
 	using specific_template_with_args_type_list_t = std::decay_t<decltype(create_type_list())>;
