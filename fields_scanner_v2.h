@@ -148,6 +148,8 @@ using type_list_element_t = typename type_list_element<I, TypeList>::type;
 template<template<typename...> class T, size_t ArgsToDetect, typename... Ts>
 struct template_type
 {
+	using template_type_tag = void;
+
 	template<typename... Args>
 	using type = T<Ts..., Args...>;
 
@@ -156,6 +158,12 @@ struct template_type
 
 	static constexpr size_t args_to_detect = ArgsToDetect;
 };
+
+template<typename T, typename = void>
+struct has_template_type_tag : std::false_type {};
+
+template<typename T>
+struct has_template_type_tag<T, std::void_t<typename T::template_type_tag>> : std::true_type {};
 
 // template_type_list
 
@@ -475,6 +483,47 @@ private:
 	}
 };
 
+// field_offset
+
+template<typename Type, size_t I, typename FieldsTypes>
+struct field_offset
+{
+	static constexpr size_t value() noexcept
+	{
+		static_assert(I < FieldsTypes::size, "index out of range");
+		return value_impl(std::make_index_sequence<I>{});
+	}
+
+	template<size_t... Is>
+	static constexpr size_t value_impl(std::index_sequence<Is...>) noexcept
+	{
+		size_t result = 0;
+		std::initializer_list<int>{((result += value_impl<Is>()), 0)...};
+		return result;
+	}
+
+	template<size_t I>
+	static constexpr size_t value_impl() noexcept
+	{
+		using type = type_list_element_t<I, FieldsTypes>;
+		return value_impl_impl<I>(has_template_type_tag<type>{});
+	}
+
+	template<size_t I>
+	static constexpr size_t value_impl_impl(std::false_type) noexcept
+	{
+		using type = type_list_element_t<I, FieldsTypes>;
+		return sizeof(type) < alignof(Type) ? alignof(Type) : sizeof(type);
+	}
+
+	template<size_t I>
+	static constexpr size_t value_impl_impl(std::true_type) noexcept
+	{
+		using type = typename type_list_element_t<I, FieldsTypes>::template type<>;
+		return sizeof(type) < alignof(Type) ? alignof(Type) : sizeof(type);
+	}
+};
+
 // fields_scanner
 
 template<typename Type, typename UserTypeList = type_list<>, typename UserTemplateTypeList = template_type_list<>>
@@ -497,6 +546,124 @@ struct fields_scanner
 
 	using type_list_t = typename scanner_impl<fields_count>::type_list_t;
 
+	template<size_t I>
+	static decltype(auto) get(Type& obj) noexcept
+	{
+		return get_impl<I>(obj, has_template_type_tag<type_list_element_t<I, type_list_t>>{});
+	}
+
+	template<size_t I>
+	static std::add_lvalue_reference_t<type_list_element_t<I, type_list_t>>
+		get_impl(Type& obj, std::false_type) noexcept
+	{
+		return *reinterpret_cast<std::add_pointer_t<type_list_element_t<I, type_list_t>>>(reinterpret_cast<uint8_t*>(&obj) + field_offset<Type, I, type_list_t>::value());
+	}
+
+	template<size_t I>
+	static std::add_lvalue_reference_t<typename type_list_element_t<I, type_list_t>::template type<>>
+		get_impl(Type& obj, std::true_type) noexcept
+	{
+		using real_type = typename type_list_element_t<I, type_list_t>::template type<>;
+		return *reinterpret_cast<std::add_pointer_t<real_type>>(reinterpret_cast<uint8_t*>(&obj) + field_offset<Type, I, type_list_t>::value());
+	}
+};
+
+template<typename, typename = void>
+struct has_ostream_operator : std::false_type {};
+
+template<typename T>
+struct has_ostream_operator<T, std::void_t<decltype(std::declval<std::ostream&>() << std::declval<const T&>())>> : std::true_type {};
+
+template<typename Type, typename UserTypeList = type_list<>, typename UserTemplateTypeList = template_type_list<>>
+struct aggregate_serializer
+{
+	using fields_scanner_t = fields_scanner<Type, UserTypeList, UserTemplateTypeList>;
+	using fields_type_list_t = typename fields_scanner_t::type_list_t;
+
+	template<size_t I>
+	static std::add_lvalue_reference_t<type_list_element_t<I, fields_type_list_t>>
+		set(Type& obj) noexcept
+	{
+		return *reinterpret_cast<std::add_pointer_t<type_list_element_t<I, fields_type_list_t>>>(reinterpret_cast<uint8_t*>(&obj) + field_offset<Type, I, fields_type_list_t>::value());
+	}
+
+	template<size_t I>
+	static decltype(auto) get(const Type& obj) noexcept
+	{
+		return get_impl<I>(obj, has_template_type_tag<type_list_element_t<I, fields_type_list_t>>{});
+	}
+
+	template<size_t I>
+	static std::add_lvalue_reference_t<std::add_const_t<type_list_element_t<I, fields_type_list_t>>>
+		get_impl(const Type& obj, std::false_type) noexcept
+	{
+		return *reinterpret_cast<std::add_pointer_t<std::add_const_t<type_list_element_t<I, fields_type_list_t>>>>(reinterpret_cast<const uint8_t*>(&obj) + field_offset<Type, I, fields_type_list_t>::value());
+	}
+
+	template<size_t I>
+	static std::add_lvalue_reference_t<std::add_const_t<typename type_list_element_t<I, fields_type_list_t>::template type<>>>
+		get_impl(const Type& obj, std::true_type) noexcept
+	{
+		using real_type = std::add_const_t<typename type_list_element_t<I, fields_type_list_t>::template type<>>;
+		return *reinterpret_cast<std::add_pointer_t<real_type>>(reinterpret_cast<const uint8_t*>(&obj) + field_offset<Type, I, fields_type_list_t>::value());
+	}
+
+	static void serialize(const Type& obj, std::ostream& out)
+	{
+		serialize(obj, out, has_ostream_operator<Type>{}, std::make_index_sequence<fields_scanner_t::fields_count>{});
+	}
+
+	template<typename AggregateType, size_t... Is>
+	static void serialize(const AggregateType& obj, std::ostream& out, std::true_type, std::index_sequence<Is...>)
+	{
+		out << obj;
+	}
+
+	template<typename AggregateType, size_t... Is>
+	static void serialize(const AggregateType& obj, std::ostream& out, std::false_type, std::index_sequence<Is...>)
+	{
+		out << '{';
+		std::initializer_list<int>{
+			(serialize_impl(
+				get<Is>(obj),
+				out,
+				std::integral_constant<bool, has_ostream_operator<std::decay_t<decltype(get<Is>(obj))>>::value >{},
+				std::is_class<std::decay_t<decltype(get<Is>(obj))>>{},
+				std::integral_constant<bool, Is + 1 == fields_scanner_t::fields_count>{}
+			), 0)...};
+		out << '}';
+	}
+
+	template<typename T>
+	static void serialize_impl(const T& obj, std::ostream& out, std::false_type, std::true_type, std::false_type)
+	{
+		aggregate_serializer<T, UserTypeList, UserTemplateTypeList>::serialize(obj, out);
+		out << ",";
+	}
+
+	template<typename T>
+	static void serialize_impl(const T& obj, std::ostream& out, std::false_type, std::true_type, std::true_type)
+	{
+		aggregate_serializer<T, UserTypeList, UserTemplateTypeList>::serialize(obj, out);
+	}
+
+	template<typename T, typename IsClass>
+	static void serialize_impl(const T& value, std::ostream& out, std::true_type, IsClass, std::false_type)
+	{
+		out << value << ',';
+	}
+
+	template<typename T, typename IsClass>
+	static void serialize_impl(const T& value, std::ostream& out, std::true_type, IsClass, std::true_type)
+	{
+		out << value;
+	}
+
+	template<typename T, typename IsLast>
+	static void serialize_impl(const T& value, std::ostream& out, std::false_type, std::false_type, IsLast)
+	{
+		static_assert(false, "value is NOT serializable");
+	}
 };
 
 }

@@ -57,7 +57,7 @@ struct S
 template<size_t I, typename T>
 using get_t = simple_reflection::type_list_element_t<I, T>;
 
-int main()
+int main_()
 {
 	using type_list_t = simple_reflection::type_list
 		<

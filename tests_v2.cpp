@@ -5,6 +5,10 @@
 #include <vector>
 #include <map>
 
+#include <cassert>
+#include <iostream>
+#include <iterator>
+
 namespace
 {
 
@@ -108,9 +112,104 @@ void test05()
 	static_assert(std::is_same<void*, type_list_element_t<4, fields_scanner<C0>::type_list_t>>::value, "C0 - 5");
 }
 
+struct D0
+{
+	int _1;
+	std::string _2;
+};
+
+struct D1
+{
+	double _1;
+	D0 _2;
+	short _3;
+};
+
+struct D2
+{
+	int _1;
+	std::vector<int> _2;
+	double _3;
+};
+
+void test06()
+{
+	D0 d0{ 77, "string d0" };
+	using d0_scanner = fields_scanner<D0, type_list<std::string>>;
+	static_assert(field_offset<D0, 0, d0_scanner::type_list_t>::value() == 0, "!");
+	static_assert(field_offset<D0, 1, d0_scanner::type_list_t>::value() == sizeof(int), "!");
+
+	assert(d0_scanner::get<0>(d0) == 77);
+	assert(d0_scanner::get<1>(d0) == "string d0");
+
+	D1 d1{ 0.99, { 33, "d1" }, 55 };
+	using d1_scanner = fields_scanner<D1, type_list<D0>>;
+	static_assert(field_offset<D1, 0, d1_scanner::type_list_t>::value() == 0, "!");
+	static_assert(field_offset<D1, 1, d1_scanner::type_list_t>::value() == sizeof(double), "!");
+	static_assert(field_offset<D1, 2, d1_scanner::type_list_t>::value() == sizeof(double) + sizeof(D0), "!");
+	assert(d1_scanner::get<0>(d1) == 0.99);
+	assert(d1_scanner::get<1>(d1)._1 == 33);
+	assert(d1_scanner::get<1>(d1)._2 == "d1");
+	assert(d1_scanner::get<2>(d1) == 55);
+
+	d1_scanner::get<1>(d1) = { 777, "new string" };
+	assert(d1_scanner::get<1>(d1)._1 == 777);
+	assert(d1_scanner::get<1>(d1)._2 == "new string");
 }
 
-int main_()
+template<typename T>
+inline std::ostream& operator << (std::ostream& out, const std::vector<T>& vec)
 {
+	out << "{";
+	if (!vec.empty())
+	{
+		out << vec.front();
+		for (auto i = std::next(vec.begin()); i != vec.end(); ++i)
+			out << "," << *i;
+	}
+	out << "}";
+	return out;
+}
+
+void test07()
+{
+	static_assert(has_ostream_operator<std::string>::value, "!");
+	static_assert(!has_ostream_operator<D0>::value, "!");
+
+	D0 d0{ 77, "string d0" };
+	using d0_serializer = aggregate_serializer<D0, type_list<std::string>>;
+	d0_serializer::serialize(d0, std::cout);
+	std::cout << std::endl;
+
+	D2 d2{ 11, {55,77,88}, 22.22 };
+	using d2_serializer = aggregate_serializer<D2, type_list<>, template_type_list<template_type<std::vector, 1>>>;
+	static_assert(field_offset<D2, 0, d2_serializer::fields_type_list_t>::value() == 0, "!");
+	static_assert(field_offset<D2, 1, d2_serializer::fields_type_list_t>::value() == 8, "!");
+	// FIXME: static_assert(field_offset<D2, 2, d2_serializer::fields_type_list_t>::value() == sizeof(std::vector<int>), "!");
+	assert(d2_serializer::get<0>(d2) == 11);
+	const auto v = d2_serializer::get<1>(d2);
+	assert(d2_serializer::get<1>(d2).size() == 3);
+	assert(d2_serializer::get<1>(d2)[0] == 55);
+	assert(d2_serializer::get<1>(d2)[1] == 77);
+	assert(d2_serializer::get<1>(d2)[2] == 88);
+	assert(d2_serializer::get<2>(d2) == 22.22);
+	d2_serializer::serialize(d2, std::cout);
+	std::cout << std::endl;
+
+	D1 d1{ 1, { 123, "hello!" }, 44 };
+	using d1_serializer = aggregate_serializer<D1, type_list<D0, std::string>>;
+	d1_serializer::serialize(d1, std::cout);
+	std::cout << std::endl;
+}
+
+}
+
+int main()
+{
+	test06();
+	test07();
+
+	std::vector<int> v{3,5,7,9,193};
+	std::cout << v << std::endl;
 	return 0;
 }
