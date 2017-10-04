@@ -483,44 +483,69 @@ private:
 	}
 };
 
+// template_type_unwrapper
+
+template<size_t I, typename FieldsTypes, bool = has_template_type_tag<type_list_element_t<I, FieldsTypes>>::value>
+struct type_unwrapper;
+
+template<size_t I, typename FieldsTypes>
+struct type_unwrapper<I, FieldsTypes,false>
+{
+	using type = type_list_element_t<I, FieldsTypes>;
+};
+
+template<size_t I, typename FieldsTypes>
+struct type_unwrapper<I, FieldsTypes, true>
+{
+	using type = typename type_list_element_t<I, FieldsTypes>::template type<>;
+};
+
 // field_offset
 
-template<typename Type, size_t I, typename FieldsTypes>
+template<typename Type, typename FieldsTypes>
 struct field_offset
 {
+	template<size_t I>
 	static constexpr size_t value() noexcept
 	{
 		static_assert(I < FieldsTypes::size, "index out of range");
-		return value_impl(std::make_index_sequence<I>{});
+		return value_impl(std::integral_constant<size_t, I>{});
 	}
 
-	template<size_t... Is>
-	static constexpr size_t value_impl(std::index_sequence<Is...>) noexcept
+	static constexpr size_t value_impl(std::integral_constant<size_t, 0>) noexcept
 	{
-		size_t result = 0;
-		std::initializer_list<int>{((result += value_impl<Is>()), 0)...};
-		return result;
+		return 0;
 	}
 
 	template<size_t I>
-	static constexpr size_t value_impl() noexcept
+	static constexpr size_t value_impl(std::integral_constant<size_t, I>) noexcept
 	{
-		using type = type_list_element_t<I, FieldsTypes>;
-		return value_impl_impl<I>(has_template_type_tag<type>{});
+		using type = typename type_unwrapper<I, FieldsTypes>::type;
+		constexpr size_t ps = size_of(std::integral_constant<size_t, I - 1>{});
+		constexpr size_t modulo = ps % alignof(Type);
+		if (modulo == 0 || sizeof(type) <= (alignof(Type)-modulo))
+			return ps;
+		else if (alignof(type) <= (alignof(Type)-modulo))
+			return ps + ((alignof(Type)-modulo) % alignof(type));
+		else
+			return ps + (alignof(Type)-modulo);
+	}
+
+	static constexpr size_t size_of(std::integral_constant<size_t, 0>) noexcept
+	{
+		return sizeof(typename type_unwrapper<0, FieldsTypes>::type);
 	}
 
 	template<size_t I>
-	static constexpr size_t value_impl_impl(std::false_type) noexcept
+	static constexpr size_t size_of(std::integral_constant<size_t, I>) noexcept
 	{
-		using type = type_list_element_t<I, FieldsTypes>;
-		return sizeof(type) < alignof(Type) ? alignof(Type) : sizeof(type);
-	}
-
-	template<size_t I>
-	static constexpr size_t value_impl_impl(std::true_type) noexcept
-	{
-		using type = typename type_list_element_t<I, FieldsTypes>::template type<>;
-		return sizeof(type) < alignof(Type) ? alignof(Type) : sizeof(type);
+		constexpr size_t ps = size_of(std::integral_constant<size_t, I - 1>{});
+		constexpr size_t s = sizeof(typename type_unwrapper<I, FieldsTypes>::type);
+		constexpr size_t modulo = ps % alignof(Type);
+		if (modulo == 0 || (ps + s) % alignof(Type) == 0 || s <= (alignof(Type) - modulo))
+			return ps + s;
+		else
+			return ps + (alignof(Type) - modulo) + s;
 	}
 };
 
@@ -556,7 +581,7 @@ struct fields_scanner
 	static std::add_lvalue_reference_t<type_list_element_t<I, type_list_t>>
 		get_impl(Type& obj, std::false_type) noexcept
 	{
-		return *reinterpret_cast<std::add_pointer_t<type_list_element_t<I, type_list_t>>>(reinterpret_cast<uint8_t*>(&obj) + field_offset<Type, I, type_list_t>::value());
+		return *reinterpret_cast<std::add_pointer_t<type_list_element_t<I, type_list_t>>>(reinterpret_cast<uint8_t*>(&obj) + field_offset<Type, type_list_t>::value<I>());
 	}
 
 	template<size_t I>
@@ -564,7 +589,7 @@ struct fields_scanner
 		get_impl(Type& obj, std::true_type) noexcept
 	{
 		using real_type = typename type_list_element_t<I, type_list_t>::template type<>;
-		return *reinterpret_cast<std::add_pointer_t<real_type>>(reinterpret_cast<uint8_t*>(&obj) + field_offset<Type, I, type_list_t>::value());
+		return *reinterpret_cast<std::add_pointer_t<real_type>>(reinterpret_cast<uint8_t*>(&obj) + field_offset<Type, type_list_t>::value<I>());
 	}
 };
 
@@ -584,7 +609,7 @@ struct aggregate_serializer
 	static std::add_lvalue_reference_t<type_list_element_t<I, fields_type_list_t>>
 		set(Type& obj) noexcept
 	{
-		return *reinterpret_cast<std::add_pointer_t<type_list_element_t<I, fields_type_list_t>>>(reinterpret_cast<uint8_t*>(&obj) + field_offset<Type, I, fields_type_list_t>::value());
+		return *reinterpret_cast<std::add_pointer_t<type_list_element_t<I, fields_type_list_t>>>(reinterpret_cast<uint8_t*>(&obj) + field_offset<Type, fields_type_list_t>::value<I>());
 	}
 
 	template<size_t I>
@@ -597,7 +622,7 @@ struct aggregate_serializer
 	static std::add_lvalue_reference_t<std::add_const_t<type_list_element_t<I, fields_type_list_t>>>
 		get_impl(const Type& obj, std::false_type) noexcept
 	{
-		return *reinterpret_cast<std::add_pointer_t<std::add_const_t<type_list_element_t<I, fields_type_list_t>>>>(reinterpret_cast<const uint8_t*>(&obj) + field_offset<Type, I, fields_type_list_t>::value());
+		return *reinterpret_cast<std::add_pointer_t<std::add_const_t<type_list_element_t<I, fields_type_list_t>>>>(reinterpret_cast<const uint8_t*>(&obj) + field_offset<Type, fields_type_list_t>::value<I>());
 	}
 
 	template<size_t I>
@@ -605,7 +630,7 @@ struct aggregate_serializer
 		get_impl(const Type& obj, std::true_type) noexcept
 	{
 		using real_type = std::add_const_t<typename type_list_element_t<I, fields_type_list_t>::template type<>>;
-		return *reinterpret_cast<std::add_pointer_t<real_type>>(reinterpret_cast<const uint8_t*>(&obj) + field_offset<Type, I, fields_type_list_t>::value());
+		return *reinterpret_cast<std::add_pointer_t<real_type>>(reinterpret_cast<const uint8_t*>(&obj) + field_offset<Type, fields_type_list_t>::value<I>());
 	}
 
 	static void serialize(const Type& obj, std::ostream& out)

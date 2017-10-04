@@ -136,17 +136,11 @@ void test06()
 {
 	D0 d0{ 77, "string d0" };
 	using d0_scanner = fields_scanner<D0, type_list<std::string>>;
-	static_assert(field_offset<D0, 0, d0_scanner::type_list_t>::value() == 0, "!");
-	static_assert(field_offset<D0, 1, d0_scanner::type_list_t>::value() == sizeof(int), "!");
-
 	assert(d0_scanner::get<0>(d0) == 77);
 	assert(d0_scanner::get<1>(d0) == "string d0");
 
 	D1 d1{ 0.99, { 33, "d1" }, 55 };
 	using d1_scanner = fields_scanner<D1, type_list<D0>>;
-	static_assert(field_offset<D1, 0, d1_scanner::type_list_t>::value() == 0, "!");
-	static_assert(field_offset<D1, 1, d1_scanner::type_list_t>::value() == sizeof(double), "!");
-	static_assert(field_offset<D1, 2, d1_scanner::type_list_t>::value() == sizeof(double) + sizeof(D0), "!");
 	assert(d1_scanner::get<0>(d1) == 0.99);
 	assert(d1_scanner::get<1>(d1)._1 == 33);
 	assert(d1_scanner::get<1>(d1)._2 == "d1");
@@ -182,10 +176,9 @@ void test07()
 	std::cout << std::endl;
 
 	D2 d2{ 11, {55,77,88}, 22.22 };
+
 	using d2_serializer = aggregate_serializer<D2, type_list<>, template_type_list<template_type<std::vector, 1>>>;
-	static_assert(field_offset<D2, 0, d2_serializer::fields_type_list_t>::value() == 0, "!");
-	static_assert(field_offset<D2, 1, d2_serializer::fields_type_list_t>::value() == 8, "!");
-	// FIXME: static_assert(field_offset<D2, 2, d2_serializer::fields_type_list_t>::value() == sizeof(std::vector<int>), "!");
+
 	assert(d2_serializer::get<0>(d2) == 11);
 	const auto v = d2_serializer::get<1>(d2);
 	assert(d2_serializer::get<1>(d2).size() == 3);
@@ -202,12 +195,51 @@ void test07()
 	std::cout << std::endl;
 }
 
+struct D3
+{
+	int _1;
+	char _2;
+	float _3;
+};
+
+void test08()
+{
+	D3 d3{1010,'a',3.4f};
+	using d3_serializer = aggregate_serializer<D3>;
+	d3_serializer::serialize(d3, std::cout);
+	std::cout << std::endl;
+}
+
+struct D4
+{
+	char _1;
+	D3 _2;
+	short _3;
+	std::vector<float> _4;
+	D2 _5;
+};
+
+void test09()
+{
+	D4 d4{ 'A', { 23, 'd', 5.5f }, 100, { 1.f, 2.f, 100500.f }, { 2, { 4, 3, 0 }, 99.7 } };
+	using d4_serializer = aggregate_serializer<D4, type_list<D3, D2>, template_type_list<template_type<std::vector, 1>>>;
+
+	std::cout << offsetof(D4, _2) << " = " << field_offset<D4, d4_serializer::fields_type_list_t>::value<1>() << " = " << field_offset<D4, d4_serializer::fields_type_list_t>::size_of(std::integral_constant<size_t, 0>{}) << std::endl;
+	std::cout << offsetof(D4, _3) << " = " << field_offset<D4, d4_serializer::fields_type_list_t>::value<2>() << " = " << field_offset<D4, d4_serializer::fields_type_list_t>::size_of(std::integral_constant<size_t, 1>{}) << std::endl;
+	std::cout << offsetof(D4, _4) << " = " << field_offset<D4, d4_serializer::fields_type_list_t>::value<3>() << " = " << field_offset<D4, d4_serializer::fields_type_list_t>::size_of(std::integral_constant<size_t, 2>{}) << std::endl;
+
+	d4_serializer::serialize(d4, std::cout);
+	std::cout << std::endl;
+}
+
 }
 
 int main()
 {
 	test06();
 	test07();
+	test08();
+	test09();
 
 	std::vector<int> v{3,5,7,9,193};
 	std::cout << v << std::endl;
