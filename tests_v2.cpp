@@ -155,21 +155,21 @@ void test06()
 template<typename T>
 inline std::ostream& operator << (std::ostream& out, const std::vector<T>& vec)
 {
-	out << "{";
+	out << '{';
 	if (!vec.empty())
 	{
 		out << vec.front();
 		for (auto i = std::next(vec.begin()); i != vec.end(); ++i)
-			out << "," << *i;
+			out << ',' << *i;
 	}
-	out << "}";
+	out << '}';
 	return out;
 }
 
 void test07()
 {
-	static_assert(has_ostream_operator<std::string>::value, "!");
-	static_assert(!has_ostream_operator<D0>::value, "!");
+	static_assert(has_ostream_operator<std::string, std::ostream>::value, "!");
+	static_assert(!has_ostream_operator<D0, std::ostream>::value, "!");
 
 	D0 d0{ 77, "string d0" };
 	using d0_serializer = aggregate_serializer<D0, type_list<std::string>>;
@@ -286,7 +286,6 @@ void test10()
 	d5_serializer::serialize(d5, ss);
 	D5 d5_2;
 	d5_serializer::deserialize(d5_2, ss);
-	ss << std::endl;
 	d5_serializer::serialize(d5_2, std::cout);
 	std::cout << std::endl;
 }
@@ -296,7 +295,7 @@ void test11()
 	D0 d0;
 	using d0_serializer = aggregate_serializer<D0, type_list<std::string>>;
 	std::stringstream ss;
-	ss << "{ 55, deserializable_string }" << std::endl;
+	ss << "{55,{21|deserializable string}}" << std::endl;
 	d0_serializer::deserialize(d0, ss);
 	d0_serializer::serialize(d0, std::cout);
 	std::cout << std::endl;
