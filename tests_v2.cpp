@@ -179,6 +179,10 @@ void test07()
 
 	using d2_serializer = aggregate_serializer<D2, type_list<>, template_type_list<template_type<std::vector, 1>>>;
 
+	/*std::cout << offsetof(D2, _1) << "=" << field_offset<D2, d2_serializer::fields_type_list_t>::of<0>() << std::endl;
+	std::cout << offsetof(D2, _2) << "=" << field_offset<D2, d2_serializer::fields_type_list_t>::of<1>() << std::endl;
+	std::cout << offsetof(D2, _3) << "=" << field_offset<D2, d2_serializer::fields_type_list_t>::of<2>() << std::endl;
+	*/
 	assert(d2_serializer::get<0>(d2) == 11);
 	const auto v = d2_serializer::get<1>(d2);
 	assert(d2_serializer::get<1>(d2).size() == 3);
@@ -223,13 +227,35 @@ void test09()
 {
 	D4 d4{ 'A', { 23, 'd', 5.5f }, 100, { 1.f, 2.f, 100500.f }, { 2, { 4, 3, 0 }, 99.7 } };
 	using d4_serializer = aggregate_serializer<D4, type_list<D3, D2>, template_type_list<template_type<std::vector, 1>>>;
-
-	std::cout << offsetof(D4, _2) << " = " << field_offset<D4, d4_serializer::fields_type_list_t>::value<1>() << " = " << field_offset<D4, d4_serializer::fields_type_list_t>::size_of(std::integral_constant<size_t, 0>{}) << std::endl;
-	std::cout << offsetof(D4, _3) << " = " << field_offset<D4, d4_serializer::fields_type_list_t>::value<2>() << " = " << field_offset<D4, d4_serializer::fields_type_list_t>::size_of(std::integral_constant<size_t, 1>{}) << std::endl;
-	std::cout << offsetof(D4, _4) << " = " << field_offset<D4, d4_serializer::fields_type_list_t>::value<3>() << " = " << field_offset<D4, d4_serializer::fields_type_list_t>::size_of(std::integral_constant<size_t, 2>{}) << std::endl;
-
+	/*std::cout << offsetof(D4, _2) << " = " << field_offset<D4, d4_serializer::fields_type_list_t>::of<1>() << std::endl;
+	std::cout << offsetof(D4, _3) << " = " << field_offset<D4, d4_serializer::fields_type_list_t>::of<2>() << std::endl;
+	std::cout << offsetof(D4, _4) << " = " << field_offset<D4, d4_serializer::fields_type_list_t>::of<3>() << std::endl;
+	std::cout << offsetof(D4, _5) << " = " << field_offset<D4, d4_serializer::fields_type_list_t>::of<4>() << std::endl;*/
 	d4_serializer::serialize(d4, std::cout);
 	std::cout << std::endl;
+}
+
+struct D5
+{
+	char _1;
+	short _2;
+	int _3;
+	D1 _4;
+	double _5;
+	short _6;
+	char _7;
+};
+
+void test10()
+{
+	D5 d5;
+	using offset_t = field_offset<D5, aggregate_serializer<D5, type_list<D1, std::string>>::fields_type_list_t>;
+	assert(offsetof(D5, _2) == offset_t::of<1>());
+	assert(offsetof(D5, _3) == offset_t::of<2>());
+	assert(offsetof(D5, _4) == offset_t::of<3>());
+	assert(offsetof(D5, _5) == offset_t::of<4>());
+	assert(offsetof(D5, _6) == offset_t::of<5>());
+	assert(offsetof(D5, _7) == offset_t::of<6>());
 }
 
 }
@@ -240,6 +266,7 @@ int main()
 	test07();
 	test08();
 	test09();
+	test10();
 
 	std::vector<int> v{3,5,7,9,193};
 	std::cout << v << std::endl;
