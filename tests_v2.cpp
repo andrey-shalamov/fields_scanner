@@ -249,13 +249,37 @@ struct D5
 void test10()
 {
 	D5 d5;
-	using offset_t = field_offset<D5, aggregate_serializer<D5, type_list<D1, std::string>>::fields_type_list_t>;
+	using d5_serializer = aggregate_serializer<D5, type_list<D1, D0, std::string>>;
+	using offset_t = field_offset<D5, d5_serializer::fields_type_list_t>;
+	assert(offsetof(D5, _1) == offset_t::of<0>());
 	assert(offsetof(D5, _2) == offset_t::of<1>());
 	assert(offsetof(D5, _3) == offset_t::of<2>());
 	assert(offsetof(D5, _4) == offset_t::of<3>());
 	assert(offsetof(D5, _5) == offset_t::of<4>());
 	assert(offsetof(D5, _6) == offset_t::of<5>());
 	assert(offsetof(D5, _7) == offset_t::of<6>());
+
+	d5_serializer::set<0>(d5) = 'W';
+	d5_serializer::set<1>(d5) = 150;
+	d5_serializer::set<2>(d5) = 7070;
+	d5_serializer::set<3>(d5) = { 6.7, { 3300, "std::string" }, 69 };
+	d5_serializer::set<4>(d5) = 55.9999;
+	d5_serializer::set<5>(d5) = 88;
+	d5_serializer::set<6>(d5) = 'E';
+
+	assert(d5._1 == 'W');
+	assert(d5._2 == 150);
+	assert(d5._3 == 7070);
+	assert(d5._4._1 == 6.7);
+	assert(d5._4._2._1 == 3300);
+	assert(d5._4._2._2 == "std::string");
+	assert(d5._4._3 == 69);
+	assert(d5._5 == 55.9999);
+	assert(d5._6 == 88);
+	assert(d5._7 == 'E');
+
+	d5_serializer::serialize(d5, std::cout);
+	std::cout << std::endl;
 }
 
 }
