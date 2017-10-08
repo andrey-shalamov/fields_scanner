@@ -8,6 +8,7 @@
 #include <cassert>
 #include <iostream>
 #include <iterator>
+#include <sstream>
 
 namespace
 {
@@ -280,6 +281,25 @@ void test10()
 
 	d5_serializer::serialize(d5, std::cout);
 	std::cout << std::endl;
+
+	std::stringstream ss;
+	d5_serializer::serialize(d5, ss);
+	D5 d5_2;
+	d5_serializer::deserialize(d5_2, ss);
+	ss << std::endl;
+	d5_serializer::serialize(d5_2, std::cout);
+	std::cout << std::endl;
+}
+
+void test11()
+{
+	D0 d0;
+	using d0_serializer = aggregate_serializer<D0, type_list<std::string>>;
+	std::stringstream ss;
+	ss << "{ 55, deserializable_string }" << std::endl;
+	d0_serializer::deserialize(d0, ss);
+	d0_serializer::serialize(d0, std::cout);
+	std::cout << std::endl;
 }
 
 }
@@ -291,6 +311,7 @@ int main()
 	test08();
 	test09();
 	test10();
+	test11();
 
 	std::vector<int> v{3,5,7,9,193};
 	std::cout << v << std::endl;

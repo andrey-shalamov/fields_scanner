@@ -585,6 +585,12 @@ struct has_ostream_operator : std::false_type {};
 template<typename T>
 struct has_ostream_operator<T, std::void_t<decltype(std::declval<std::ostream&>() << std::declval<const T&>())>> : std::true_type {};
 
+template<typename, typename = void>
+struct has_istream_operator : std::false_type {};
+
+template<typename T>
+struct has_istream_operator<T, std::void_t<decltype(std::declval<std::istream&>() >> std::declval<T&>())>> : std::true_type {};
+
 template<typename Type, typename UserTypeList = type_list<>, typename UserTemplateTypeList = template_type_list<>>
 struct aggregate_serializer
 {
@@ -604,6 +610,7 @@ struct aggregate_serializer
 		return get_impl<I>(obj, has_template_type_tag<type_list_element_t<I, fields_type_list_t>>{});
 	}
 
+private:
 	template<size_t I>
 	static std::add_lvalue_reference_t<std::add_const_t<type_list_element_t<I, fields_type_list_t>>>
 		get_impl(const Type& obj, std::false_type) noexcept
@@ -619,6 +626,8 @@ struct aggregate_serializer
 		return *reinterpret_cast<std::add_pointer_t<real_type>>(reinterpret_cast<const uint8_t*>(&obj) + field_offset<Type, fields_type_list_t>::of<I>());
 	}
 
+public:
+	// serialize
 	static void serialize(const Type& obj, std::ostream& out)
 	{
 		serialize(obj, out, has_ostream_operator<Type>{}, std::make_index_sequence<fields_scanner_t::fields_count>{});
@@ -633,7 +642,7 @@ struct aggregate_serializer
 	template<typename AggregateType, size_t... Is>
 	static void serialize(const AggregateType& obj, std::ostream& out, std::false_type, std::index_sequence<Is...>)
 	{
-		out << '{';
+		out << '{' << ' ';
 		std::initializer_list<int>{
 			(serialize_impl(
 				get<Is>(obj),
@@ -642,14 +651,14 @@ struct aggregate_serializer
 				std::is_class<std::decay_t<decltype(get<Is>(obj))>>{},
 				std::integral_constant<bool, Is + 1 == fields_scanner_t::fields_count>{}
 			), 0)...};
-		out << '}';
+		out << ' ' << '}';
 	}
 
 	template<typename T>
 	static void serialize_impl(const T& obj, std::ostream& out, std::false_type, std::true_type, std::false_type)
 	{
 		aggregate_serializer<T, UserTypeList, UserTemplateTypeList>::serialize(obj, out);
-		out << ",";
+		out << ',' << ' ';
 	}
 
 	template<typename T>
@@ -661,7 +670,7 @@ struct aggregate_serializer
 	template<typename T, typename IsClass>
 	static void serialize_impl(const T& value, std::ostream& out, std::true_type, IsClass, std::false_type)
 	{
-		out << value << ',';
+		out << value << ',' << ' ';
 	}
 
 	template<typename T, typename IsClass>
@@ -674,6 +683,69 @@ struct aggregate_serializer
 	static void serialize_impl(const T& value, std::ostream& out, std::false_type, std::false_type, IsLast)
 	{
 		static_assert(false, "value is NOT serializable");
+	}
+
+	// deserialize
+	static void deserialize(Type& obj, std::istream& in)
+	{
+		in >> std::noskipws;
+		deserialize(obj, in, has_istream_operator<Type>{}, std::make_index_sequence<fields_scanner_t::fields_count>{});
+	}
+
+	template<typename AggregateType, size_t... Is>
+	static void deserialize(AggregateType& obj, std::istream& in, std::true_type, std::index_sequence<Is...>)
+	{
+		in >> obj;
+	}
+
+	template<typename AggregateType, size_t... Is>
+	static void deserialize(AggregateType& obj, std::istream& in, std::false_type, std::index_sequence<Is...>)
+	{
+		std::istream::char_type ignore = 0;
+		in >> ignore >> ignore;
+		std::initializer_list<int>{
+			(deserialize_impl(
+				set<Is>(obj),
+				in,
+				std::integral_constant<bool, has_istream_operator<std::decay_t<decltype(set<Is>(obj))>>::value >{},
+				std::is_class<std::decay_t<decltype(set<Is>(obj))>>{},
+				std::integral_constant<bool, Is + 1 == fields_scanner_t::fields_count>{}
+			), 0)...};
+		in >> ignore >> ignore;
+	}
+
+	template<typename T>
+	static void deserialize_impl(T& obj, std::istream& in, std::false_type, std::true_type, std::false_type)
+	{
+		aggregate_serializer<T, UserTypeList, UserTemplateTypeList>::deserialize(obj, in);
+		std::istream::char_type ignore = 0;
+		in >> ignore >> ignore;
+	}
+
+	template<typename T>
+	static void deserialize_impl(T& obj, std::istream& in, std::false_type, std::true_type, std::true_type)
+	{
+		aggregate_serializer<T, UserTypeList, UserTemplateTypeList>::deserialize(obj, in);
+	}
+
+	template<typename T, typename IsClass>
+	static void deserialize_impl(T& value, std::istream& in, std::true_type, IsClass, std::false_type)
+	{
+		in >> value;
+		std::istream::char_type ignore = 0;
+		in >> ignore >> ignore;
+	}
+
+	template<typename T, typename IsClass>
+	static void deserialize_impl(T& value, std::istream& in, std::true_type, IsClass, std::true_type)
+	{
+		in >> value;
+	}
+
+	template<typename T, typename IsLast>
+	static void deserialize_impl(T& value, std::istream& in, std::false_type, std::false_type, IsLast)
+	{
+		static_assert(false, "value is NOT deserializable");
 	}
 };
 
