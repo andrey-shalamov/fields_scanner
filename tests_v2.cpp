@@ -301,6 +301,40 @@ void test11()
 	std::cout << std::endl;
 }
 
+struct D6
+{
+	std::string _1;
+	int _2;
+	std::vector<short> _3;
+	D0 _4;
+	std::map<int, D0> _5;
+	double _6;
+	std::vector<D0> _7;
+	unsigned char _8;
+	float _9;
+};
+
+void test12()
+{
+	D6 d{ "str1", -3,
+		{ 5, 7, 9 }, 
+		{ -10, "str2" },
+		{ { -1, { 1, "s1" } }, { -2, { 2, "s2" } }, { -3, {3, "s3"} } },
+		50.1122,
+		{ { -5, "-5" }, {-6, "-6"} },
+		'F', 5.87f
+	};
+	using serializer_t = aggregate_serializer<D6, type_list<std::string, D0>, template_type_list<template_type<std::vector, 1>, template_type<std::map, 2>>>;
+	serializer_t::serialize(d, std::cout);
+	std::cout << std::endl;
+	std::stringstream ss;
+	serializer_t::serialize(d, ss);
+	D6 d_;
+	serializer_t::deserialize(d_, ss);
+	serializer_t::serialize(d_, std::cout);
+	std::cout << std::endl;
+}
+
 }
 
 int main()
@@ -311,6 +345,7 @@ int main()
 	test09();
 	test10();
 	test11();
+	test12();
 
 	std::vector<int> v{3,5,7,9,193};
 	std::cout << v << std::endl;
