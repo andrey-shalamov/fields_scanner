@@ -141,6 +141,8 @@
   <ItemGroup>
     <ClCompile Include="tests.cpp" />
     <ClCompile Include="tests_v2.cpp" />
+    <ClCompile Include="test_compiler_01.cpp" />
+    <ClCompile Include="test_compiler_02.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="fields_scanner.h" />

@@ -463,28 +463,55 @@ struct clarify_type<Type, FieldsCount, FieldIndex, UserTypeList, UserTemplateTyp
 template<typename T>
 struct fields_count_detector
 {
-	static constexpr size_t detect() noexcept
-	{
-		// TODO: bit fields
-		return detect_impl(std::make_index_sequence<sizeof(T)>{});
-	}
 private:
 	template<size_t... Is>
-	static constexpr size_t detect_impl(std::index_sequence<Is...>) noexcept
+	static constexpr size_t can_be_created(std::index_sequence<Is...>) noexcept
 	{
-		return detect_impl(std::make_index_sequence<sizeof...(Is)-1>{});
+		return false;
 	}
 
-	static constexpr size_t detect_impl(std::index_sequence<>) noexcept
+	static constexpr size_t can_be_created(std::index_sequence<>) noexcept
 	{
-		return 0;
+		return true;
 	}
 
 	template<size_t I0, size_t... Is>
-	static constexpr std::enable_if_t < std::is_same < T, decltype(T{ indexed_any_type<I0>{}, indexed_any_type<Is>{}... }) > ::value, size_t >
-		detect_impl(std::index_sequence<I0, Is...>) noexcept
+	static constexpr std::enable_if_t < std::is_same < T, decltype(T{ indexed_any_type<I0>{}, indexed_any_type<Is>{}... }) > ::value, bool >
+		can_be_created(std::index_sequence<I0, Is...>) noexcept
 	{
-		return 1 + sizeof...(Is);
+		return true;
+	}
+public:
+	template<size_t N>
+	using can_be_created_with_n_args = std::integral_constant<bool, fields_count_detector<T>::can_be_created(std::make_index_sequence<N>{})>;
+
+	static constexpr size_t detect() noexcept
+	{
+		return detect<1>(std::false_type{}, can_be_created_with_n_args<1>{});
+	}
+private:
+	template<size_t N>
+	static constexpr size_t detect(std::false_type, std::true_type) noexcept
+	{
+		return detect<N * 2>(std::false_type{}, can_be_created_with_n_args<N * 2>{});
+	}
+
+	template<size_t N>
+	static constexpr size_t detect(std::false_type, std::false_type) noexcept
+	{
+		return detect<N - 1>(std::true_type{}, can_be_created_with_n_args<N - 1>{});
+	}
+
+	template<size_t N>
+	static constexpr size_t detect(std::true_type, std::false_type) noexcept
+	{
+		return detect<N - 1>(std::true_type{}, can_be_created_with_n_args<N - 1>{});
+	}
+
+	template<size_t N>
+	static constexpr size_t detect(std::true_type, std::true_type) noexcept
+	{
+		return N;
 	}
 };
 
