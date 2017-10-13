@@ -164,11 +164,14 @@ struct template_type
 	static constexpr size_t args_to_detect = ArgsToDetect;
 };
 
+template<typename...>
+using void_t = void;
+
 template<typename T, typename = void>
 struct has_template_type_tag : std::false_type {};
 
 template<typename T>
-struct has_template_type_tag<T, std::void_t<typename T::template_type_tag>> : std::true_type {};
+struct has_template_type_tag<T, void_t<typename T::template_type_tag>> : std::true_type {};
 
 // template_type_list
 
@@ -593,8 +596,21 @@ struct fields_scanner
 	static std::add_lvalue_reference_t<type_unwrapper_t<I, type_list_t>>
 		get(Type& obj) noexcept
 	{
-		return *reinterpret_cast<std::add_pointer_t<type_unwrapper_t<I, type_list_t>>>(reinterpret_cast<uint8_t*>(&obj) + field_offset<Type, type_list_t>::of<I>());
+		return *reinterpret_cast<std::add_pointer_t<type_unwrapper_t<I, type_list_t>>>(reinterpret_cast<uint8_t*>(&obj) + field_offset<Type, type_list_t>::template of<I>());
 	}
+};
+
+template<typename Type, typename UserTypeList = type_list<>, typename UserTemplateTypeList = template_type_list<>>
+struct fields_scanner_lazy
+{
+	static constexpr auto fields_count = fields_count_detector<Type>::detect();
+
+	template<size_t I>
+	struct field
+	{
+		using clarify_type_t = clarify_type<Type, fields_count, I, UserTypeList, UserTemplateTypeList, 0, any_type>;
+		using type = type_unwrapper_t<clarify_type_t::index(), typename clarify_type_t::type_list_t>;
+	};
 };
 
 // has_ostream_operator
@@ -603,7 +619,7 @@ template<typename, typename, typename = void>
 struct has_ostream_operator : std::false_type {};
 
 template<typename T, typename OStream>
-struct has_ostream_operator<T, OStream, std::void_t<decltype(std::declval<OStream&>() << std::declval<const T&>())>> : std::true_type {};
+struct has_ostream_operator<T, OStream, void_t<decltype(std::declval<OStream&>() << std::declval<const T&>())>> : std::true_type {};
 
 // has_istream_operator
 
@@ -611,7 +627,7 @@ template<typename, typename, typename = void>
 struct has_istream_operator : std::false_type {};
 
 template<typename T, typename IStream>
-struct has_istream_operator<T, IStream, std::void_t<decltype(std::declval<IStream&>() >> std::declval<T&>())>> : std::true_type {};
+struct has_istream_operator<T, IStream, void_t<decltype(std::declval<IStream&>() >> std::declval<T&>())>> : std::true_type {};
 
 // special_serializer
 
@@ -767,14 +783,14 @@ struct aggregate_serializer
 	static std::add_lvalue_reference_t<type_unwrapper_t<I, fields_type_list_t>>
 		set(Type& obj) noexcept
 	{
-		return *reinterpret_cast<std::add_pointer_t<type_unwrapper_t<I, fields_type_list_t>>>(reinterpret_cast<uint8_t*>(&obj) + field_offset<Type, fields_type_list_t>::of<I>());
+		return *reinterpret_cast<std::add_pointer_t<type_unwrapper_t<I, fields_type_list_t>>>(reinterpret_cast<uint8_t*>(&obj) + field_offset<Type, fields_type_list_t>::template of<I>());
 	}
 
 	template<size_t I>
 	static std::add_lvalue_reference_t<std::add_const_t<type_unwrapper_t<I, fields_type_list_t>>>
 		get(const Type& obj) noexcept
 	{
-		return *reinterpret_cast<std::add_pointer_t<std::add_const_t<type_unwrapper_t<I, fields_type_list_t>>>>(reinterpret_cast<const uint8_t*>(&obj) + field_offset<Type, fields_type_list_t>::of<I>());
+		return *reinterpret_cast<std::add_pointer_t<std::add_const_t<type_unwrapper_t<I, fields_type_list_t>>>>(reinterpret_cast<const uint8_t*>(&obj) + field_offset<Type, fields_type_list_t>::template of<I>());
 	}
 
 	// serialize
